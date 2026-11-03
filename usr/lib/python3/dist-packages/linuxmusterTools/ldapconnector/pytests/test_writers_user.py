@@ -2,6 +2,7 @@ import ldb
 import pytest
 
 import linuxmusterTools.passwords as passwords_module
+import linuxmusterTools.lmnconfig as lmnconfig_module
 import linuxmusterTools.samba_util.samba_tool as samba_tool_module
 from linuxmusterTools.passwords import MinLengthRule
 from linuxmusterTools.ldapconnector.writers import user as user_module
@@ -254,7 +255,53 @@ class TestLMNUserSetFirstPassword:
         assert calls == ['N3wFirstP@ss!']
 
 
+def fake_school_config(sections):
+    """SchoolConfig replacement returning the given school.conf sections."""
+    return lambda school='default-school': type('FakeSchoolConfig', (), {'config': sections})()
+
+
+def fake_policy_provider(min_length=None):
+    rules = (MinLengthRule(length=min_length),) if min_length else ()
+    policy = type('FakePolicy', (), {
+        'rules': rules,
+        'validate': lambda self, password, username=None: type('Result', (), {'ok': True})(),
+    })()
+    return lambda: type('FakeProvider', (), {
+        'get_policy': lambda self, role, school='default-school': policy,
+    })()
+
+
 class TestLMNUserSetRandomFirstPassword:
+
+    @pytest.fixture(autouse=True)
+    def no_school_conf(self, monkeypatch):
+        # Never read the school.conf of the machine running the tests
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({}))
+
+    @pytest.mark.parametrize('pwd_length, min_length, expected', [
+        (15, 8, 15),    # PWD_LENGTH of school.conf is used
+        (5, 8, 8),      # but raised to the policy minimum
+        (None, 8, 8),   # no PWD_LENGTH: policy minimum
+        (None, None, 8),
+    ])
+    def test_length_from_school_conf_and_policy(self, monkeypatch, mock_connect, pwd_length, min_length, expected):
+        monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
+        u = LMNUser('johndoe')
+        monkeypatch.setattr(u, 'set_first_password', lambda password: None)
+        section = {'PWD_LENGTH': pwd_length} if pwd_length else {}
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({'userfile.students.csv': section}))
+        monkeypatch.setattr(passwords_module, 'PasswordPolicyProvider', fake_policy_provider(min_length))
+
+        assert len(u.set_random_first_password()) == expected
+
+    def test_pwd_length_of_another_user_file_is_ignored(self, monkeypatch, mock_connect):
+        monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
+        u = LMNUser('johndoe')
+        monkeypatch.setattr(u, 'set_first_password', lambda password: None)
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({'userfile.teachers.csv': {'PWD_LENGTH': 20}}))
+        monkeypatch.setattr(passwords_module, 'PasswordPolicyProvider', fake_policy_provider(8))
+
+        assert len(u.set_random_first_password()) == 8
 
     def test_generates_password_at_policy_minimum_length_and_applies_it(self, monkeypatch, mock_connect):
         monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))

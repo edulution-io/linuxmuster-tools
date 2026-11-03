@@ -234,16 +234,22 @@ class LMNUser:
         """
         Generate a random password satisfying the resolved password policy
         for this user's role/school, then set it as first + current password.
-        Length is entirely determined by that policy's minimum length.
+        Length is the PWD_LENGTH of the user's file in school.conf, like
+        sophomorix, raised to the policy's minimum length if shorter.
 
         :return: the generated password
         """
 
+        from linuxmusterTools.lmnconfig import SchoolConfig
         from linuxmusterTools.passwords import MinLengthRule, PasswordPolicyProvider
 
         provider = PasswordPolicyProvider()
         policy = provider.get_policy(self.data.get('sophomorixRole', ''), school=self.school)
         length = max((r.length for r in policy.rules if isinstance(r, MinLengthRule)), default=8)
+
+        school = self.data.get('sophomorixSchoolname') or self.school
+        userfile = SchoolConfig(school=school).config.get(f"userfile.{self.data.get('sophomorixAdminFile', '')}", {})
+        length = max(length, int(userfile.get('PWD_LENGTH', 0)))
 
         charlist = string.ascii_letters + string.digits + "!@#$%&*+-?"
         for _ in range(100):
