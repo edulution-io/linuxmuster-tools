@@ -103,14 +103,10 @@ def test_happy_path_sorts_students_and_calls_renderer(monkeypatch):
     renderer_instance.compile.assert_called_once()
 
 
-def test_school_param_not_forwarded_to_ldap_calls(monkeypatch):
+def test_school_param_forwarded_to_ldap_calls(monkeypatch):
     """
-    Documents a production gap: print_schoolclass_list() accepts a `school`
-    argument (used only for the template's `vars`), but its lr.getval()/
-    lr.get() calls never pass school=school (see schoolclasses.py:21,27),
-    unlike the equivalent code in passwords.py which does forward it. In a
-    multi-school setup this means classes are always looked up against the
-    LDAP router's default school regardless of the `school` argument.
+    The `school` argument is forwarded to the LDAP lookups, like in
+    passwords.py, and not only to the template `vars`.
     """
     template_obj = SimpleNamespace(filename="schoolclass-DE-32-template.tex", count=32, type="schoolclass")
     monkeypatch.setattr(
@@ -134,5 +130,5 @@ def test_school_param_not_forwarded_to_ldap_calls(monkeypatch):
 
     print_schoolclass_list("7a", "admin", school="other-school")
 
-    assert "school" not in seen_kwargs["getval"]
-    assert "school" not in seen_kwargs["get"]
+    assert seen_kwargs["getval"]["school"] == "other-school"
+    assert seen_kwargs["get"]["school"] == "other-school"

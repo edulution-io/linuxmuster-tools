@@ -43,7 +43,7 @@ pdf_path = print_passwords_list('7a', 'admin', large=True)
 | `large` | `bool` | Swap `passwords-` for `passwordslarge-` in the template name |
 | `template` | `str` | Template filename to use (see [Templates](#templates)) |
 
-### `print_schoolclass_list(schoolclass, caller, school='default_school', template="schoolclass-DE-32-template.tex")`
+### `print_schoolclass_list(schoolclass, caller, school='default-school', template="schoolclass-DE-32-template.tex")`
 
 Prints a sorted list (lastname, firstname) of the students of a schoolclass.
 
@@ -56,10 +56,10 @@ pdf_path = print_schoolclass_list('7a', 'admin')
 |---|---|---|
 | `schoolclass` | `str` | Schoolclass CN |
 | `caller` | `str` | Username of the calling user, used as a filename prefix |
-| `school` | `str` | Only forwarded to the template `vars`, not to the LDAP lookups |
+| `school` | `str` | School of the schoolclass, also forwarded to the template `vars` |
 | `template` | `str` | Template filename to use |
 
-> `print_schoolclasses_list(schoolclasses, caller, school='default_school', template="datalist-DE-32-template.tex")` (multiple schoolclasses in one document) is declared but not yet implemented — it currently does nothing.
+> `print_schoolclasses_list(schoolclasses, caller, school='default-school', template="datalist-DE-32-template.tex")` (multiple schoolclasses in one document) is declared but not yet implemented — it currently does nothing.
 
 ---
 
