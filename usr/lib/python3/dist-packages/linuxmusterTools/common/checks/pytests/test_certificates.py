@@ -53,21 +53,20 @@ def test_domcert_captures_issuer_common_name_end_to_end(tls_server_factory, utcn
     assert "My Test Issuer" in issuer_values
 
 
-def test_expired_cert_is_rejected_at_tls_handshake_before_app_logic_runs(tls_server_factory, utcnow):
+def test_expired_cert_end_to_end(tls_server_factory, utcnow):
     """
-    Documents actual behaviour: ssl.create_default_context() validates the
-    certificate's validity dates itself during the TLS handshake. For a
-    genuinely expired certificate this raises SSLCertVerificationError
-    *before* DomCert ever gets a chance to inspect notAfter, so in real
-    usage `DomCert(...)` raises instead of `isvalid()` gracefully
-    returning False for an expired cert. See production bug note.
+    The TLS handshake itself rejects a genuinely expired certificate, before
+    notAfter can be read: DomCert reports it as invalid, without its date.
     """
     not_before = utcnow - timedelta(days=60)
     not_after = utcnow - timedelta(days=1)
     hostname, port = tls_server_factory(not_before, not_after)
 
-    with pytest.raises(ssl.SSLCertVerificationError):
-        DomCert(hostname, port)
+    cert = DomCert(hostname, port)
+
+    assert cert.valid is False
+    assert cert.notAfter is None
+    assert cert.expires() == "Expired"
 
 
 def test_domcert_connection_failure_propagates():

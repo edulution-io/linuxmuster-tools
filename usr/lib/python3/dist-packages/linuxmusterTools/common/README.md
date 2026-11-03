@@ -76,10 +76,10 @@ from linuxmusterTools.common import DomCert
 
 cert = DomCert('linuxmuster.example.com', 443)
 cert.isvalid()    # True/False, refreshes the certificate first
-cert.expires()    # '87 days (Jan 15 12:00:00 2027 GMT)' or 'Expired since ...'
+cert.expires()    # '87 days (Jan 15 12:00:00 2027 GMT)', 'Expired since ...' or 'Expired'
 ```
 
-`DomCert(hostname, port)` fetches the peer certificate over SSL on instantiation; `.notAfter`, `.notAfter_timestamp`, `.issuer` and `.valid` are then available as attributes.
+`DomCert(hostname, port)` fetches the peer certificate over SSL on instantiation; `.notAfter`, `.notAfter_timestamp`, `.issuer` and `.valid` are then available as attributes. An expired certificate is already rejected by the TLS handshake: `.valid` is then `False`, the other attributes stay `None` and `expires()` returns `'Expired'`. Any other certificate error (self-signed, wrong hostname, ...) is raised.
 
 ---
 

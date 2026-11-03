@@ -15,7 +15,15 @@ class DomCert:
         self.cert = None
         self.issuer = None
 
-        self._get_cert()
+        try:
+            self._get_cert()
+        except ssl.SSLCertVerificationError as e:
+            # The TLS handshake already rejects an expired certificate, whose
+            # dates can then not be read: 10 is X509_V_ERR_CERT_HAS_EXPIRED.
+            if e.verify_code == 10:
+                self.valid = False
+                return
+            raise
         self._get_limit()
 
     def _get_cert(self):
@@ -45,4 +53,6 @@ class DomCert:
         if self.valid:
             return f"{(self.notAfter_timestamp - datetime.now(timezone.utc)).days} days ({self.notAfter})"
 
-        return f"Expired since {self.notAfter}"
+        if self.notAfter:
+            return f"Expired since {self.notAfter}"
+        return "Expired"
