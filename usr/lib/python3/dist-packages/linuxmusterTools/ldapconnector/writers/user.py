@@ -57,6 +57,7 @@ class LMNUser:
         kwargs must contain a data dict with attributes/values to set.
         """
 
+
         if not self.new:
             self.lw._setattr(self, **kwargs)
             self.load_data()
@@ -69,6 +70,7 @@ class LMNUser:
         only for an existing object.
         kwargs must contain a data dict with attributes/values to set.
         """
+
 
         if not self.new:
             self.lw._delattr(self, **kwargs)
@@ -104,6 +106,7 @@ class LMNUser:
         """
         Delete the user's entry.
         """
+
 
         if not self.new:
             self.lw._del(self.data['distinguishedName'])
@@ -201,6 +204,7 @@ class LMNUser:
         /var/lib/samba/private/sam.ldb).
         """
 
+
         from linuxmusterTools.samba_util import samba_tool
 
         samba_tool.load_samba_bindings()
@@ -235,10 +239,14 @@ class LMNUser:
         Generate a random password satisfying the resolved password policy
         for this user's role/school, then set it as first + current password.
         Length is the PWD_LENGTH of the user's file in school.conf, like
-        sophomorix, raised to the policy's minimum length if shorter.
+        sophomorix, raised to the policy's minimum length if shorter. With
+        RANDOM_PWD = dice, it is a diceware passphrase instead (DICE_WORDS,
+        DICE_LANG, DICE_SEPARATOR, DICE_CAPS), drawn again until it satisfies
+        the policy.
 
         :return: the generated password
         """
+
 
         from linuxmusterTools.lmnconfig import SchoolConfig
         from linuxmusterTools.passwords import MinLengthRule, PasswordPolicyProvider
@@ -250,15 +258,37 @@ class LMNUser:
         school = self.data.get('sophomorixSchoolname') or self.school
         userfile = SchoolConfig(school=school).config.get(f"userfile.{self.data.get('sophomorixAdminFile', '')}", {})
         length = max(length, int(userfile.get('PWD_LENGTH', 0)))
+        dice = str(userfile.get('RANDOM_PWD', '')).lower() == 'dice'
 
-        charlist = string.ascii_letters + string.digits + "!@#$%&*+-?"
+        if dice:
+            import diceware
+
+            lang = userfile.get('DICE_LANG', 'de')
+            if lang not in diceware.get_wordlist_names():
+                raise ValueError(f'Unknown diceware wordlist {lang}, available: {", ".join(sorted(diceware.get_wordlist_names()))}')
+
+            args = [
+                '-n', str(userfile.get('DICE_WORDS', 3)),
+                '-w', lang,
+                '-d', str(userfile.get('DICE_SEPARATOR', '.'))
+            ]
+            if str(userfile.get('DICE_CAPS', 'FALSE')).lower() in ('false', 'no'):
+                args.append('--no-caps')
+            options = diceware.handle_options(args)
+        else:
+            charlist = string.ascii_letters + string.digits + "!@#$%&*+-?"
+
         for _ in range(100):
-            candidate = ''.join(secrets.choice(charlist) for _ in range(length))
+            if dice:
+                candidate = diceware.get_passphrase(options)
+            else:
+                candidate = ''.join(secrets.choice(charlist) for _ in range(length))
             if policy.validate(candidate, username=self.cn).ok:
                 self.set_first_password(candidate)
                 return candidate
 
-        raise RuntimeError('Could not generate a password satisfying the current policy after 100 attempts.')
+        hint = ' Dice passwords need the Samba password complexity off.' if dice else ''
+        raise RuntimeError(f'Could not generate a password satisfying the current policy after 100 attempts.{hint}')
 
     def create(self):
         raise NotImplementedError

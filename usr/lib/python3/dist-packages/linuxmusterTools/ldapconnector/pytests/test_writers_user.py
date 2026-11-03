@@ -294,6 +294,49 @@ class TestLMNUserSetRandomFirstPassword:
 
         assert len(u.set_random_first_password()) == expected
 
+    @pytest.mark.parametrize('section, separator, caps', [
+        ({'RANDOM_PWD': 'dice'}, '.', False),   # defaults of sophomorix
+        ({'RANDOM_PWD': 'dice', 'DICE_WORDS': 4, 'DICE_SEPARATOR': '-', 'DICE_CAPS': 'TRUE', 'DICE_LANG': 'en_eff'}, '-', True),
+    ])
+    def test_dice_passphrase(self, monkeypatch, mock_connect, section, separator, caps):
+        pytest.importorskip('diceware')
+        monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
+        u = LMNUser('johndoe')
+        monkeypatch.setattr(u, 'set_first_password', lambda password: None)
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({'userfile.students.csv': section}))
+        monkeypatch.setattr(passwords_module, 'PasswordPolicyProvider', fake_policy_provider(8))
+
+        words = u.set_random_first_password().split(separator)
+
+        assert len(words) == section.get('DICE_WORDS', 3)
+        assert all(word[0].isupper() for word in words) == caps
+
+    def test_dice_unknown_wordlist_raises(self, monkeypatch, mock_connect):
+        pytest.importorskip('diceware')
+        monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
+        u = LMNUser('johndoe')
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({'userfile.students.csv': {'RANDOM_PWD': 'dice', 'DICE_LANG': 'xx'}}))
+        monkeypatch.setattr(passwords_module, 'PasswordPolicyProvider', fake_policy_provider(8))
+
+        with pytest.raises(ValueError, match='Unknown diceware wordlist xx'):
+            u.set_random_first_password()
+
+    def test_dice_rejected_by_policy_mentions_complexity(self, monkeypatch, mock_connect):
+        pytest.importorskip('diceware')
+        monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
+        u = LMNUser('johndoe')
+        monkeypatch.setattr(lmnconfig_module, 'SchoolConfig', fake_school_config({'userfile.students.csv': {'RANDOM_PWD': 'dice'}}))
+        policy = type('FakePolicy', (), {
+            'rules': (),
+            'validate': lambda self, password, username=None: type('Result', (), {'ok': False})(),
+        })()
+        monkeypatch.setattr(passwords_module, 'PasswordPolicyProvider', lambda: type('FakeProvider', (), {
+            'get_policy': lambda self, role, school='default-school': policy,
+        })())
+
+        with pytest.raises(RuntimeError, match='complexity off'):
+            u.set_random_first_password()
+
     def test_pwd_length_of_another_user_file_is_ignored(self, monkeypatch, mock_connect):
         monkeypatch.setattr(router, 'get', lambda url, **kw: dict(SAMPLE_USER))
         u = LMNUser('johndoe')
