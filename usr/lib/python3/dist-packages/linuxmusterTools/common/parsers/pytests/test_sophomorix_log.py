@@ -119,11 +119,9 @@ def test_parse_kill_log_skips_malformed_line_missing_fields(log_paths, lmn_caplo
     with lmn_caplog.at_level("DEBUG"):
         result = parse_kill_log(all=True)
 
-    # Production quirk: result[timestamp] = [] is set *before* the
-    # IndexError is raised while building the entry dict, so a malformed
-    # line still leaves a stray empty-list entry under its own timestamp
-    # instead of being fully skipped. See production bug note.
-    assert result.get(123) == []
+    # The malformed line is fully skipped, without an empty entry left
+    # under its own timestamp.
+    assert 123 not in result
     assert len(result[NOW]) == 1
     assert "Malformed line in kill log" in lmn_caplog.text
 
@@ -306,8 +304,8 @@ def test_parse_add_log_skips_malformed_line(log_paths, lmn_caplog):
     with lmn_caplog.at_level("DEBUG"):
         result = parse_add_log(all=True)
 
-    # Same stray-empty-list quirk as parse_kill_log (see other test note).
-    assert result.get(123) == []
+    # Fully skipped, like in parse_kill_log.
+    assert 123 not in result
     assert len(result[NOW]) == 1
     assert "Malformed line in add log" in lmn_caplog.text
 
@@ -376,10 +374,8 @@ def test_parse_update_log_malformed_change_drops_entire_entry(log_paths, lmn_cap
     with lmn_caplog.at_level("DEBUG"):
         result = parse_update_log(all=True)
 
-    # Same stray-empty-list quirk: result[timestamp] = [] is set before the
-    # unpacking ValueError is raised, so the timestamp key survives with an
-    # empty list even though the whole line was meant to be dropped.
-    assert result == {NOW: []}
+    # The whole line is dropped, timestamp included.
+    assert result == {}
     assert "Malformed line in update log" in lmn_caplog.text
 
 

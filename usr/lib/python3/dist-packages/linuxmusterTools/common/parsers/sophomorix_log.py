@@ -71,10 +71,7 @@ def parse_kill_log(all=False, epoch=None, today=False, lastweek=False):
                 if lastweek and not datetime.fromtimestamp(timestamp).date() >= datetime.today().date() + timedelta(days=-7):
                     continue
 
-                if timestamp not in result:
-                    result[timestamp] = []
-
-                result[timestamp].append({
+                entry = {
                     'school': entries[3],
                     'user': entries[4],
                     'firstname': entries[6],
@@ -83,7 +80,8 @@ def parse_kill_log(all=False, epoch=None, today=False, lastweek=False):
                     'role': entries[8],
                     'first_password': entries[9],
                     'home_deleted': 'TRUE' in entries[10],
-                })
+                }
+                result.setdefault(timestamp, []).append(entry)
             except (IndexError, ValueError) as e:
                 logger.debug(f"Malformed line in kill log, skipping: {e}")
 
@@ -159,10 +157,7 @@ def parse_add_log(all=False, epoch=None, today=False, lastweek=False):
                 if lastweek and not datetime.fromtimestamp(timestamp).date() >= datetime.today().date() + timedelta(days=-7):
                     continue
 
-                if timestamp not in result:
-                    result[timestamp] = []
-
-                result[timestamp].append({
+                entry = {
                     'school': entries[3],
                     'user': entries[4],
                     'firstname': entries[6],
@@ -170,7 +165,8 @@ def parse_add_log(all=False, epoch=None, today=False, lastweek=False):
                     'adminclass': entries[7],
                     'role': entries[8],
                     'unid': entries[9] if entries[9] != '---' else None,
-                })
+                }
+                result.setdefault(timestamp, []).append(entry)
             except (IndexError, ValueError) as e:
                 logger.debug(f"Malformed line in add log, skipping: {e}")
 
@@ -256,9 +252,6 @@ def parse_update_log(all=False, epoch=None, today=False, lastweek=False, list_ch
                 if lastweek and not datetime.fromtimestamp(timestamp).date() >= datetime.today().date() + timedelta(days=-7):
                     continue
 
-                if timestamp not in result:
-                    result[timestamp] = []
-
                 changes = {}
                 if list_changes:
                     for change in entries[7].split(b','):
@@ -274,11 +267,12 @@ def parse_update_log(all=False, epoch=None, today=False, lastweek=False, list_ch
                                 else:
                                     changes[key.decode()] = value.decode()
 
-                result[timestamp].append({
+                entry = {
                     'school': entries[3].decode(),
                     'user': entries[5].decode(),
                     'changes': changes,
-                })
+                }
+                result.setdefault(timestamp, []).append(entry)
             except (IndexError, ValueError) as e:
                 logger.debug(f"Malformed line in update log, skipping: {e}")
 
