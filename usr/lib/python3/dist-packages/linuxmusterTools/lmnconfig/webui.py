@@ -13,11 +13,7 @@ _CACHE = {}
 class CustomFieldsConfig:
 
     def __init__(self, school='default-school'):
-        if WEBUI_IMPORT:
-            self.config = {}
-            return
-
-        self.config = self._load(school)
+        self.config = {} if WEBUI_IMPORT else self._load(school)
 
         for role in ['globaladministrators', 'schooladministrators', 'students', 'teachers']:
             tmp_role_config = {}

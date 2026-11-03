@@ -142,7 +142,7 @@ fields.teachers['passwordTemplates']
 
 Each of `globaladministrators`, `schooladministrators`, `students`, `teachers` is set as an attribute holding a dict with the keys `custom`, `customDisplay`, `customMulti`, `passwordTemplates`, `proxyAddresses` — missing entries default to `{}`.
 
-> When `linuxmusterTools.common.WEBUI_IMPORT` is `True` (module imported from inside the webui process), `__init__` returns immediately with `config = {}` and none of the per-role attributes are set.
+> When `linuxmusterTools.common.WEBUI_IMPORT` is `True` (module imported from inside the webui process), the file is not read: `config` is `{}` and every per-role attribute holds the five keys with `{}`.
 
 The parsed file is cached per school and read again only when its mtime changes, so an edit from the webui is seen by a running lmnapi at its next request. The ldapconnector instantiates this class on every request: parsing the yaml file each time cost 12-19 ms per request (13 s to list all users with `/users`). `config` is shared between instances and must not be modified.
 

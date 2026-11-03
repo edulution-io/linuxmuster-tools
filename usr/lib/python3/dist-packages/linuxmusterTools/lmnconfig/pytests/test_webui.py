@@ -94,10 +94,9 @@ def test_file_found_is_read_and_split_per_role(monkeypatch, fake_lmnfile):
     assert config.students['proxyAddresses'] == {}
 
 
-def test_webui_import_true_short_circuits_before_role_attributes_are_set(monkeypatch, fake_lmnfile):
-    # Documents current behavior: when WEBUI_IMPORT is truthy, __init__
-    # returns immediately after setting self.config = {}, so none of the
-    # per-role attributes (self.students, self.teachers, ...) ever get set.
+def test_webui_import_true_gives_empty_config_and_role_attributes(monkeypatch, fake_lmnfile):
+    # When WEBUI_IMPORT is truthy, the file is not read: config is empty, but
+    # the per-role attributes are still set, with empty dicts.
     monkeypatch.setattr(webui_module, 'WEBUI_IMPORT', True)
     # Even if the file "exists" and LMNFile has content, WEBUI_IMPORT must win.
     monkeypatch.setattr(webui_module, 'get_utc_mtime', mtime_only_for(expected_path('default-school'))[0])
@@ -107,7 +106,10 @@ def test_webui_import_true_short_circuits_before_role_attributes_are_set(monkeyp
 
     assert config.config == {}
     for role in ROLES:
-        assert not hasattr(config, role)
+        assert getattr(config, role) == {
+            'custom': {}, 'customDisplay': {}, 'customMulti': {},
+            'passwordTemplates': {}, 'proxyAddresses': {},
+        }
 
 
 def test_unchanged_file_is_parsed_only_once(monkeypatch, fake_lmnfile):
