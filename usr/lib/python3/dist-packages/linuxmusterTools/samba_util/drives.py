@@ -94,8 +94,9 @@ class DriveManager:
     @staticmethod
     def _parseProperties(drive):
        properties = {}
-       # It should be max one properties node
-       for prop in drive.findall('Properties'):
+
+       # A drive may not have any Properties
+       for prop in drive.findall('Properties') or [{}]:
             properties['useLetter'] = bool(int(prop.get('useLetter', '0')))
             properties['letter'] = prop.get('letter', '')
             properties['label'] = prop.get('label', 'Unknown')

@@ -126,26 +126,24 @@ def test_load_parses_drives_properties_and_filters(tmp_path):
     assert manager.usedLetters == ["H", "Z"]
 
 
-def test_load_raises_keyerror_when_drive_has_no_properties_node(tmp_path):
+def test_load_defaults_when_drive_has_no_properties_node(tmp_path):
     """
-    Known bug: `_parseProperties` returns `{}` (not per-key defaults) when a
-    `<Drive>` has no `<Properties>` child at all, since its `.get(...,
-    default)` calls only run inside the `for prop in
-    drive.findall('Properties')` loop. `DriveManager.load()` then indexes
-    `properties['letter']` unconditionally (drives.py:82), which raises
-    KeyError instead of degrading gracefully like a `<Drive>` with a present
-    but attribute-sparse `<Properties>` node would.
+    A `<Drive>` without any `<Properties>` child gets the same defaults as an
+    empty `<Properties/>` node, instead of a KeyError in `load()`.
     """
     policy_path = _make_policy_dir(tmp_path, EMPTY_DRIVE_XML, policy_name="{GUID-empty-props}")
 
-    with pytest.raises(KeyError, match="letter"):
-        DriveManager(str(policy_path))
+    manager = DriveManager(str(policy_path))
+
+    assert len(manager.drives) == 1
+    assert manager.drives[0].properties == {
+        'useLetter': False, 'letter': '', 'label': 'Unknown', 'path': None,
+    }
 
 
 def test_load_defaults_when_properties_node_is_attribute_sparse(tmp_path):
     """
-    Unlike a fully-absent <Properties> node (see the KeyError test above), a
-    present-but-attribute-sparse <Properties> node degrades gracefully
+    A present-but-attribute-sparse <Properties> node degrades gracefully
     because each attribute is read via `.get(name, default)`.
     """
     xml = """<?xml version="1.0" encoding="utf-8"?>
