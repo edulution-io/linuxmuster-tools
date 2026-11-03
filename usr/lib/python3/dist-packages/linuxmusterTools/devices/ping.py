@@ -7,7 +7,7 @@ from .devices import Devices
 
 class UPChecker:
     def __init__(self, school='default-school'):
-        self.devicesmgr = Devices()
+        self.devicesmgr = Devices(school=school)
         self.devices = self.devicesmgr.clients
 
     def checkhost(self, hostname):
