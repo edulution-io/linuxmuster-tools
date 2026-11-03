@@ -8,6 +8,22 @@ from linuxmusterTools.common import UnknownTemplateTypeError
 OUTPUT_DIR = "/var/lib/lmntools/print/"
 TEMPLATES_DIR = "/var/lib/lmntools/templates/"
 
+LATEX_ESCAPE = str.maketrans({
+    '\\': r'\textbackslash{}',
+    '{': r'\{',
+    '}': r'\}',
+    '$': r'\$',
+    '&': r'\&',
+    '#': r'\#',
+    '^': r'\textasciicircum{}',
+    '_': r'\_',
+    '%': r'\%',
+    '~': r'\textasciitilde{}',
+    # Shorthand of babel in german ("a gives a-umlaut), needs the T1 font
+    # encoding of the templates.
+    '"': r'\textquotedbl{}',
+})
+
 
 class LatexRenderer:
 
@@ -22,14 +38,19 @@ class LatexRenderer:
 
     def _sanitize(self):
         """
-        Filter some common problems for LaTeX compilation, like _ => \\_
+        Escape the LaTeX special characters in the vars and in the data, which
+        are only values, never LaTeX code: e.g. _ => \\_, % => \\%
         """
 
 
-        tmp_vars = {}
-        for key, value in self.vars.items():
-            tmp_vars[key] = value.replace("_", "\\_")
-        self.vars_sanitized = tmp_vars
+        def escape(value):
+            return value.translate(LATEX_ESCAPE) if isinstance(value, str) else value
+
+        self.vars_sanitized = {key: escape(value) for key, value in self.vars.items()}
+        self.data_sanitized = [
+            {key: escape(value) for key, value in entry.items()} if isinstance(entry, dict) else escape(entry)
+            for entry in self.data
+        ]
 
     def _clean(self):
         for ext in [".log", ".aux", ".toc", ".dvi", ".ps", ".pre", ".thm", ".pyg"]:
@@ -53,9 +74,9 @@ class LatexRenderer:
             # Split into multiples pages if too much data
             count = self.template_obj.count
             datablocks = [
-                self.data[count*i:count*i+count]
-                for i in range(len(self.data)//count+1)
-                if count*i != len(self.data)
+                self.data_sanitized[count*i:count*i+count]
+                for i in range(len(self.data_sanitized)//count+1)
+                if count*i != len(self.data_sanitized)
             ]
 
             self.out = self.template.render(datablocks=datablocks, **self.vars_sanitized)

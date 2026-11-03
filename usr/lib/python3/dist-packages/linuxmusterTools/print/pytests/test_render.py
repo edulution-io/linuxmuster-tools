@@ -33,16 +33,23 @@ def test_sanitize_leaves_plain_string_untouched():
     assert r.vars_sanitized["school"] == "default-school"
 
 
-def test_sanitize_only_escapes_underscore_not_other_latex_specials():
-    """
-    Documents actual behaviour: _sanitize() only replaces "_" => "\\_".
-    Other common LaTeX special characters (%, &, #, \\, {, }) are NOT
-    escaped despite the docstring's generic framing ("like _ => \\_").
-    This is noted as a production gap, not fixed here.
-    """
-    value = "50% & #1 \\ {x}"
+def test_sanitize_escapes_all_latex_specials_in_one_pass():
+    value = '50% & #1 \\ {x} $y ^ ~ _ "a'
     r = LatexRenderer(make_template_obj(), data=[], vars={"v": value})
-    assert r.vars_sanitized["v"] == value
+    assert r.vars_sanitized["v"] == (
+        "50\\% \\& \\#1 \\textbackslash{} \\{x\\} \\$y "
+        "\\textasciicircum{} \\textasciitilde{} \\_ \\textquotedbl{}a"
+    )
+
+
+def test_sanitize_escapes_data_values_and_keeps_others():
+    data = [{"lastname": "O_Brien & Co", "firstname": "100%", "password": None}]
+    r = LatexRenderer(make_template_obj(), data=data)
+    assert r.data_sanitized == [
+        {"lastname": "O\\_Brien \\& Co", "firstname": "100\\%", "password": None}
+    ]
+    # the original data is untouched
+    assert r.data == data
 
 
 def test_sanitize_runs_on_init_and_keeps_original_vars():

@@ -67,7 +67,7 @@ pdf_path = print_schoolclass_list('7a', 'admin')
 
 Generated files are written to `/var/lib/lmntools/print/`, named `{caller}-{type}-{schoolclass}.pdf` (e.g. `admin-passwords-7a.pdf`, `admin-schoolclass-7a.pdf`). The intermediate `.tex` file is kept next to the PDF; auxiliary LaTeX files (`.log`, `.aux`, `.toc`, `.dvi`, `.ps`, `.pre`, `.thm`, `.pyg`) are deleted after compilation.
 
-> Template variables are only sanitized for LaTeX by escaping `_` to `\_`; other special characters (`%`, `&`, `#`, `\`, `{`, `}`) are passed through as-is.
+> The template variables and the data (names, logins, passwords) are values, never LaTeX code: all the LaTeX special characters (`\ { } $ & # ^ _ % ~`), and `"` used as shorthand by babel in german, are escaped before rendering, so that they are printed as such.
 
 ---
 
