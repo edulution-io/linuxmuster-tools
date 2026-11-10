@@ -1,3 +1,39 @@
+linuxmuster-tools7 (1:7.4.20~edu) lmn74; urgency=medium
+
+  * edulution fork. The package keeps its upstream name, so the epoch 1: is
+    what makes it win against the same package from deb.linuxmuster.net.
+  * e version carries the suffix ~edu on top of the epoch, so apt policy,
+    dpkg -l and the motd show at a glance that this is the edulution build
+    and not the upstream package. "~" sorts before the empty string, so
+    1:7.4.20~edu stays below a hypothetical 1:7.4.20 while still outranking
+    every upstream 7.x, which carries no epoch at all. The versioned
+    dependencies on the fork's own packages therefore clamp on "(>=
+    1:x.y.z~)", the Debian idiom that also accepts a tilde suffix.
+  * Depend on sophomorix-samba (>= 1:7.4.7~), so the fork cannot be mixed
+    with the upstream package.
+  * The LDAP settings move from /etc/linuxmuster/webui/config.yml to
+    /etc/linuxmuster/tools/ldap.yml, next to password_constraints.yml. The
+    old file was created by linuxmuster-webui7 alone, so tools7, cli7 and
+    api7 needed the webui installed to reach LDAP at all. The new file uses
+    a flat schema and is written by linuxmuster-base7's setup.
+  * postinst migrates an existing webui config once
+    (install-scripts/migrate_ldap_config.py).
+  * ALLOWED_PATHS of lmnfile drops the two webui paths and gains the new
+    one.
+  * postinst no longer names linuxmuster-webui7, which this fork does not
+    install.
+  * docs_src/conf.py splits the apt-cache output on the first colon only.
+    The epoch adds a second one, so the documented version read as plain
+    "1".
+  * The github-release job asks for contents: write. The repository's
+    default GITHUB_TOKEN permission is read, so creating the release would
+    have failed with a 403 on the first tag. Granting it on the job keeps
+    the default untouched for every other workflow.
+  * Release workflow publishes to edulution-io/edulution-package-server
+    instead of linuxmuster/deb, into the Ubuntu codename resolute.
+
+ -- Lukas Lukic-Spitznagel <lukas.spitznagel@netzint.de>  Fri, 13 Nov 2026 12:00:00 +0100
+
 linuxmuster-tools7 (7.4.20) lmn74; urgency=medium
 
   * [security] [linbo] get_onboot_command() never returns the

@@ -41,12 +41,12 @@ remove_stale_venv()
     msg "Python is now $running, rebuilding the linuxmuster venv from scratch"
     rm -rf /opt/linuxmuster
 
-    # linuxmuster-api7, -cli7 and -webui7 own their own requirements and must
+    # linuxmuster-api7 and -cli7 own their own requirements and must
     # reinstall them into the new venv, whether or not they are upgraded in
     # this very run: dpkg calls their postinst with 'triggered' at the end of
     # it. Guarded because dpkg-trigger fails outside a maintainer script.
     if ! dpkg-trigger linuxmuster-venv ; then
-        msg "Could not activate the linuxmuster-venv trigger. Reinstall linuxmuster-api7, linuxmuster-cli7 and linuxmuster-webui7 to repopulate the venv."
+        msg "Could not activate the linuxmuster-venv trigger. Reinstall linuxmuster-api7 and linuxmuster-cli7 to repopulate the venv."
     fi
 }
 
@@ -73,6 +73,25 @@ case "$1" in
         PYTHON3=/opt/linuxmuster/bin/python3
         
         $PYTHON3 -m pip install -r /usr/lib/python3/dist-packages/linuxmusterTools/requirements.txt
+
+        # One-time migration. The LDAP search base used to be read from
+        # /etc/linuxmuster/webui/config.yml, which linuxmuster-webui7 owned.
+        # These are linuxmusterTools' own settings, so they now live next to
+        # password_constraints.yml. Carries an existing server over before the
+        # webui is removed from it.
+        if [ ! -f /etc/linuxmuster/tools/ldap.yml ] && [ -f /etc/linuxmuster/webui/config.yml ] ; then
+            mkdir -p /etc/linuxmuster/tools
+            # mktemp creates with 0600, and the target holds a bind password.
+            tmpcfg="$(mktemp /etc/linuxmuster/tools/ldap.yml.XXXXXX)"
+            if /usr/bin/python3 \
+                /usr/lib/python3/dist-packages/linuxmusterTools/install-scripts/migrate_ldap_config.py \
+                > "$tmpcfg" ; then
+                mv "$tmpcfg" /etc/linuxmuster/tools/ldap.yml
+                msg "Moved the LDAP settings to /etc/linuxmuster/tools/ldap.yml"
+            else
+                rm -f "$tmpcfg"
+            fi
+        fi
 
         msg "Checking post-hooks directories"
         mkdir -p /etc/linuxmuster/tools/hooks/group-manager
@@ -112,11 +131,10 @@ case "$1" in
         chmod +x /etc/linuxmuster/sophomorix/default-school/hooks/sophomorix-update.d/00-update-schoolclasses-groups.py
         chmod +x /etc/linuxmuster/sophomorix/default-school/hooks/sophomorix-kill.d/00-update-schoolclasses-groups.py
 
-        msg "You should restart manually linuxmuster-webui and linuxmuster-api"
+        msg "You should restart manually linuxmuster-api"
         #msg "Restarting services"
 
         #/bin/systemctl daemon-reload
-        #/bin/systemctl is-enabled linuxmuster-webui.service && /bin/systemctl restart linuxmuster-webui.service
         #/bin/systemctl is-enabled linuxmuster-api.service && /bin/systemctl restart linuxmuster-api.service
 
     ;;

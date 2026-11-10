@@ -17,5 +17,5 @@ Depends: python3,
  python3-pexpect,
  python3-yaml,
  nmap,
- sophomorix-samba
+ sophomorix-samba (>= 1:7.4.7~)
 Description: Tools for the linuxmuster.net 7 server.

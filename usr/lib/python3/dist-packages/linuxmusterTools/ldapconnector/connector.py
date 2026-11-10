@@ -16,6 +16,12 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 local_thread = threading.local()
 
+# linuxmusterTools' own settings, next to password_constraints.yml. These used
+# to live in /etc/linuxmuster/webui/config.yml, a file owned by
+# linuxmuster-webui7 - so tools7, cli7 and api7 all needed the webui installed
+# to reach LDAP. linuxmuster-base7 writes this file during the setup.
+LDAP_CONFIG = '/etc/linuxmuster/tools/ldap.yml'
+
 class LdapConnector:
 
     def _connect(self):
@@ -31,7 +37,7 @@ class LdapConnector:
 
 
         ## TODO: AUTH via GSSAPI for linuxmuster-client7, actually not used
-        # if not os.path.isfile('/etc/linuxmuster/webui/config.yml'):
+        # if not os.path.isfile(LDAP_CONFIG):
         #     # Using it from linuxclient
         #     # Trying to auth via GSSAPI
         #     try:
@@ -64,9 +70,14 @@ class LdapConnector:
                     'Samba/LDAP is not provisioned yet (.secret/administrator missing) - run linuxmuster-setup first.'
                 )
 
+            if not os.path.isfile(LDAP_CONFIG):
+                raise LdapNotProvisionedError(
+                    f'{LDAP_CONFIG} is missing - run linuxmuster-setup first.'
+                )
+
             # Using Administrator password to be able to write data in LDAP
-            with LMNFile('/etc/linuxmuster/webui/config.yml', 'r') as config:
-                ldap_params = config.data['linuxmuster']['ldap']
+            with LMNFile(LDAP_CONFIG, 'r') as config:
+                ldap_params = config.data
             with open('/etc/linuxmuster/.secret/administrator', 'r') as admpwd:
                 bindpwd = admpwd.read().strip()
 

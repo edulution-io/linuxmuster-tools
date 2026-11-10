@@ -187,14 +187,14 @@ Access is restricted to a whitelist of allowed paths:
 
 ```
 /etc/linuxmuster/api/config.yml
-/etc/linuxmuster/webui/config.yml
+/etc/linuxmuster/tools/ldap.yml
+/etc/linuxmuster/tools/password_constraints.yml
 /etc/linuxmuster/sophomorix/
 /srv/linbo
 /etc/linuxmuster/subnets.csv
 /etc/linuxmuster/holidays.yml
 /var/lib/linuxmuster/setup.ini
 /tmp/setup.ini
-/usr/lib/linuxmuster-webui/plugins
 ```
 
 Any path outside this list, or containing `..`, raises `IOError: Access refused.`

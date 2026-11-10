@@ -56,7 +56,9 @@ author = 'Arnaud Kientz'
 def setup(app):
     app.add_css_file("theme_overrides.css")
 
-version = subprocess.check_output('apt-cache policy linuxmuster-tools7 | grep Candidat', shell=True).decode().split(':')[1].strip()
+# apt prints "  Candidate: 1:7.4.20~edu". The epoch adds a second colon, so
+# split on the first one only - otherwise the version reads as plain "1".
+version = subprocess.check_output('apt-cache policy linuxmuster-tools7 | grep Candidat', shell=True).decode().split(':', 1)[1].strip()
 release = version
 
 language = 'en_GB'
