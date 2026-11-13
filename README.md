@@ -1,3 +1,10 @@
+> [!NOTE]
+> **This is the edulution fork of [linuxmuster-tools](https://github.com/linuxmuster/linuxmuster-tools).**
+> We build on the great work of the linuxmuster.net community. Maintaining our own
+> fork gives us the flexibility to ship security fixes and new features to edulution
+> installations quickly, and we actively contribute our changes back to the community
+> project. The packages are published at [package.edulution.io](https://package.edulution.io).
+
 <h1 align="center">
     Linuxmuster-tools7
 </h1>
@@ -7,7 +14,7 @@
         <img src="https://img.shields.io/badge/Python-v3-green" alt="Badge License" />
     </a>
     <a href="https://raw.githubusercontent.com/ajenti/ajenti/master/LICENSE"> 
-        <img src="https://img.shields.io/github/license/linuxmuster/linuxmuster-tools?label=License" alt="Badge License" />
+        <img src="https://img.shields.io/github/license/edulution-io/linuxmuster-tools?label=License" alt="Badge License" />
     </a>
     <a href="https://ask.linuxmuster.net">
         <img src="https://img.shields.io/discourse/users?logo=discourse&logoColor=white&server=https%3A%2F%2Fask.linuxmuster.net" alt="Community Forum"/>
@@ -39,19 +46,26 @@ Primary maintainer | [@kiarn](https://github.com/kiarn)
 
 ## Installation
 
-### 1. Import key:
+### 1. Import key
 
 ```bash
-wget -qO- "https://deb.linuxmuster.net/pub.gpg" | gpg --dearmour -o /usr/share/keyrings/linuxmuster.net.gpg
+curl -fsSL https://package.edulution.io/pub.gpg | sudo gpg --dearmor -o /usr/share/keyrings/edulution.gpg
 ```
 
-### 2. Add repo:
-
-##### Linuxmuster 7.2 ( testing )
+### 2. Add repo
 
 ```bash
-sudo sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/linuxmuster.net.gpg] https://deb.linuxmuster.net/ lmn72 main" > /etc/apt/sources.list.d/lmn72.list'
+sudo tee /etc/apt/sources.list.d/edulution.sources > /dev/null <<'EOF'
+Types: deb
+URIs: https://package.edulution.io/
+Suites: resolute
+Components: main
+Signed-By: /usr/share/keyrings/edulution.gpg
+EOF
 ```
+
+> Packages from package.edulution.io depend on `edulution-archive-keyring`, which keeps
+> `/usr/share/keyrings/edulution.gpg` up to date from then on.
 
 ### 3. Apt update
 
