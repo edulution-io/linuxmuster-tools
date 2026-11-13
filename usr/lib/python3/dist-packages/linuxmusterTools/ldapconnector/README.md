@@ -16,6 +16,28 @@ Connecting as root (or outside the webui) requires Samba to already be provision
 
 ---
 
+## Configuration — `/etc/linuxmuster/tools/ldap.yml`
+
+```yaml
+binddn: CN=global-binduser,OU=Management,OU=GLOBAL,DC=linuxmuster,DC=lan
+bindpw: "<password of global-binduser>"
+host: server
+searchdn: DC=linuxmuster,DC=lan
+```
+
+| Key | Read by |
+|---|---|
+| `searchdn` | `LdapConnector._connect()` — the search base, and the `CN=Administrator,CN=Users,…` bind DN is built from it |
+| `binddn`, `bindpw`, `host` | not read today. They describe the read-only bind user the server provides, so that a consumer that should not bind as Administrator has it at hand |
+
+Written by `linuxmuster-base7`'s setup step `kz_ldap-config`, which runs right after `k_samba-users` creates the `global-binduser`. Mode `0600`: it carries that user's password.
+
+**Until 7.4.20 these settings lived in `/etc/linuxmuster/webui/config.yml`**, under a `linuxmuster: ldap:` mapping. That file was created by `linuxmuster-webui7`, so `linuxmuster-tools7`, `-cli7` and `-api7` needed the webui installed to reach LDAP at all. `debian/postinst` migrates an existing one once (see `install-scripts/migrate_ldap_config.py`).
+
+When `linuxmusterTools` is imported *inside* the webui and not running as root, the credentials still come from `aj.plugins.lmn_common.api.ldap_config` instead of this file.
+
+---
+
 ## Reading — `LMNLdapReader`
 
 ### Import

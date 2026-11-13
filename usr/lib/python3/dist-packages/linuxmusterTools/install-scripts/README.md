@@ -11,6 +11,7 @@ Unlike the other `linuxmusterTools` modules, this directory is **not an importab
 | Path | Role |
 |---|---|
 | `create_students_groups.py` | **Deprecated.** Rebuilt schoolclass/parents group membership in LDAP. No longer run by `debian/postinst`; nothing calls it. |
+| `migrate_ldap_config.py` | Moves the LDAP settings from the webui's `config.yml` to `/etc/linuxmuster/tools/ldap.yml`. Run once by `debian/postinst`. |
 | `sophomorix-hooks/sophomorix-add.d/00-update-schoolclasses-groups.py` | Sophomorix `add` hook template. |
 | `sophomorix-hooks/sophomorix-update.d/00-update-schoolclasses-groups.py` | Sophomorix `update` hook template. |
 | `sophomorix-hooks/sophomorix-kill.d/00-update-schoolclasses-groups.py` | Sophomorix `kill` hook template. |
@@ -40,7 +41,7 @@ Why the sweep is redundant:
 | Student added/removed outside an import | `sophomorix-class --addmembers/--removemembers`, same callback |
 | Class deleted | `sophomorix-class` calls `lmncli schoolclass cleanup` |
 
-Both callbacks need **sophomorix4 >= 7.4.4**, which is guaranteed in practice: an installation pulls `linuxmuster-webui7`, which depends on sophomorix.
+Both callbacks need **sophomorix4 >= 7.4.4**, which is guaranteed in practice: `linuxmuster-tools7` depends on `sophomorix-samba`.
 
 The `LMNParentsGroup('')` half never worked: `load_data()` calls `_check_ou()` before assigning `self.student`, and `_check_ou()` reads `self.student['dn']`, so an actually missing OU raises `AttributeError` — caught and logged as a failure. The OU is created on demand by any real `LMNParentsGroup(<student>)`.
 
@@ -53,7 +54,7 @@ Errors are caught and logged with `lprint.danger()` rather than raised, so a fai
     /usr/lib/python3/dist-packages/linuxmusterTools/install-scripts/create_students_groups.py
 ```
 
-No arguments. It prints a deprecation warning and, when `/etc/linuxmuster/webui/config.yml` is absent (a brand-new install, no LDAP tree to check yet), does nothing.
+No arguments. It prints a deprecation warning and, when `/etc/linuxmuster/tools/ldap.yml` is absent (a brand-new install, no LDAP tree to check yet), does nothing.
 
 ---
 

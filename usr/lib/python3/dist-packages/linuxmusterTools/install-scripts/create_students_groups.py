@@ -40,7 +40,7 @@ lprint.warning(
     'Use "lmncli schoolclass sync" to repair a schoolclass.'
 )
 
-if not Path('/etc/linuxmuster/webui/config.yml').is_file():
+if not Path('/etc/linuxmuster/tools/ldap.yml').is_file():
     lprint.info('New installation detected, I will not check the LDAP groups.')
 else:
     # Checking groups like 7a-teachers, 7a-parents, 7a-students.
