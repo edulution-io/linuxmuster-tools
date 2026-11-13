@@ -19,6 +19,18 @@ jobs:
       - name: Install dependencies
         run: sudo apt update && sudo apt install debhelper build-essential -y
 
+      - name: Check the tag against debian/changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # git refuses ':' and '~' in a refname, so the tag spells the version
+          # without the epoch and with a dash: 1:7.4.24~edu -> v7.4.24-edu.
+          VERSION="$(dpkg-parsechangelog -S Version)"
+          EXPECTED="v$(echo "${VERSION#*:}" | tr '~' '-')"
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match debian/changelog ($VERSION). Tag the release as $EXPECTED."
+            exit 1
+          fi
+
       - name: Build
         run: make deb
 
@@ -88,19 +100,23 @@ jobs:
     name: Push latest release to archive repo
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/') && github.repository == 'edulution-io/linuxmuster-tools'
     runs-on: ubuntu-latest
+    # Holds the package server's deploy key and admits v* tags only, so a run
+    # on any branch cannot read the key.
+    environment: package-server
     steps:
       - name: Setup SSH Key
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          PACKAGESERVER_PRIVATE_KEY: ${{ secrets.PACKAGESERVER_PRIVATE_KEY }}
         run: |
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-          ssh-add - <<< "${{ secrets.REPO_SSH_KEY }}"
+          ssh-add - <<< "$PACKAGESERVER_PRIVATE_KEY"
           
       - name: Clone archive repo
         uses: actions/checkout@v3
         with: 
           repository: "edulution-io/edulution-package-server"
-          ssh-key: ${{ secrets.REPO_SSH_KEY }}
+          ssh-key: ${{ secrets.PACKAGESERVER_PRIVATE_KEY }}
           path: "./deb"
           
       - name: Prepare download
@@ -144,7 +160,9 @@ jobs:
       - name: Copy packages
         run: |
           mkdir -p deb/packages/$PACKAGE/$CODENAME
-          rm -rf deb/packages/$PACKAGE/$CODENAME/*
+          # Only the package files: anything else in the directory belongs to the
+          # package server.
+          rm -f "deb/packages/$PACKAGE/$CODENAME/"*.deb "deb/packages/$PACKAGE/$CODENAME/"*.changes "deb/packages/$PACKAGE/$CODENAME/"*.buildinfo "deb/packages/$PACKAGE/$CODENAME/"*.dsc "deb/packages/$PACKAGE/$CODENAME/"*.tar.*
           
           cp package/* deb/packages/$PACKAGE/$CODENAME
           
