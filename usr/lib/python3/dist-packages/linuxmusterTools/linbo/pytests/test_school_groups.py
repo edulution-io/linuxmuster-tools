@@ -292,3 +292,32 @@ def test_linbo_remote_of_default_school_keeps_the_plain_group():
     with patch('linuxmusterTools.linbo.linbo_sync.read_config', side_effect=lambda g: seen.append(g) or OS_CONFIG):
         remote.build()
     assert seen == ['raum101']
+
+
+# ── a group containing the separator cannot name a group of another school ──
+
+
+@pytest.mark.parametrize('school', ['default-school', 'abc', None])
+def test_a_group_with_the_separator_has_no_id(school):
+    with pytest.raises(ValueError):
+        get_linbo_group_id(school, 'abc__raum101')
+
+
+def test_the_default_school_manager_does_not_own_a_qualified_id(two_schools):
+    manager = LinboConfigManager('default-school')
+    assert not manager.owns('abc__raum101')
+    assert not manager.owns('default-school__x')
+    assert manager.owns('raum101')
+
+
+def test_linbo_remote_refuses_a_group_with_the_separator():
+    from linuxmusterTools.linbo.linbo_sync import LinboRemoteParameterError
+
+    with patch('linuxmusterTools.linbo.linbo_sync.lr.getval', return_value=['default-school']):
+        with pytest.raises(LinboRemoteParameterError):
+            LinboRemote(group='abc__raum101', cmd='sync:1', school='default-school').build()
+
+
+def test_set_group_line_keeps_crlf_line_endings():
+    content = '[LINBO]\r\nGroup = a\r\nCache = /dev/sda4\r\n'
+    assert set_group_line(content, 'abc__a') == '[LINBO]\r\nGroup = abc__a\r\nCache = /dev/sda4\r\n'

@@ -16,7 +16,7 @@ from ..common.checks import NameChecker
 from ..devices import Devices
 from ..ldapconnector import LMNLdapReader as lr
 from .config import LINBO_PATH, LinboConfigManager, read_config
-from .group_ids import get_linbo_group_id
+from .group_ids import LINBO_GROUP_SEPARATOR, get_linbo_group_id
 
 
 SESSION_SUFFIX = '_linbo-remote'
@@ -108,6 +108,9 @@ class LinboRemote:
 
         if self.school and self.school not in lr.getval('/schools', 'ou'):
             raise LinboRemoteParameterError(f'{self.school} is not a valid school.')
+
+        if self.group and LINBO_GROUP_SEPARATOR in self.group:
+            raise LinboRemoteParameterError(f'A group must not contain {LINBO_GROUP_SEPARATOR}.')
 
         if self.clients and self.group:
             raise LinboRemoteParameterError(f"group and clients are mutually exclusive.")
