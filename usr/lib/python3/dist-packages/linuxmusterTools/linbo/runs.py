@@ -13,6 +13,7 @@ A run killed by a signal is recorded with 128 plus the signal number.
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 from . import config as config_module
 from .boot_logs import LinboBootLogs
@@ -21,6 +22,19 @@ from ..devices import Devices
 RUN_RECORD_FILE = 'linbo-remote_runs.jsonl'
 DEFAULT_LIMIT = 50
 logger = logging.getLogger(__name__)
+
+
+def _start_key(run):
+    """
+    Sort key of a run by its start time. Records written by older linbo-remote
+    versions use a +0200 offset, newer ones +02:00; both parse. Without a
+    readable start a run sorts last.
+    """
+
+    try:
+        return datetime.fromisoformat(run['start']).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 class LinboRunNotFoundError(LookupError):
@@ -65,7 +79,7 @@ class LinboRunReader:
             except ValueError:
                 logger.warning(f'Skipping an unreadable line of {path}')
                 continue
-            if isinstance(record, dict) and record.get('hostname'):
+            if isinstance(record, dict) and isinstance(record.get('hostname'), str) and record['hostname']:
                 records.append(record)
         return records
 
@@ -120,7 +134,7 @@ class LinboRunReader:
         :return: List of run dicts without their host logs
         """
 
-        runs = sorted(self._runs(hostnames).values(), key=lambda r: r['start'] or '', reverse=True)
+        runs = sorted(self._runs(hostnames).values(), key=_start_key, reverse=True)
         return runs[:limit]
 
     def get_run(self, run_id, hostnames=None):

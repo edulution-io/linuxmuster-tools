@@ -251,3 +251,17 @@ def test_a_hanging_probe_is_not_a_support():
     with patch('linuxmusterTools.linbo.linbo_sync.subprocess.run',
                side_effect=subprocess.TimeoutExpired('linbo-remote', 5)):
         assert supports_run_user() is False
+
+
+def test_runs_sort_by_instant_across_offset_formats(log_dir):
+    write_records(
+        log_dir,
+        record('pc01', run_id='old-format', start='2026-10-01T12:00:00+0200'),
+        record('pc01', run_id='new-format', start='2026-10-01T11:30:00+00:00'),
+    )
+    assert [r['runId'] for r in LinboRunReader().list_runs()] == ['new-format', 'old-format']
+
+
+def test_a_record_with_a_non_string_hostname_is_skipped(log_dir):
+    write_records(log_dir, '{"hostname": ["a"], "run_id": "x"}', record('pc01'))
+    assert [r['hosts'][0]['hostname'] for r in LinboRunReader().list_runs(hostnames={'pc01'})] == ['pc01']
