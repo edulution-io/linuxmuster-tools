@@ -14,6 +14,8 @@ cannot contain ``_`` (it is part of every device hostname), so the first
 separator always ends the school.
 """
 
+import logging
+
 DEFAULT_SCHOOL = 'default-school'
 LINBO_GROUP_SEPARATOR = '__'
 
@@ -31,6 +33,20 @@ def get_linbo_group_id(school, group):
     if not school or school == DEFAULT_SCHOOL:
         return group
     return f'{school}{LINBO_GROUP_SEPARATOR}{group}'
+
+
+def try_get_linbo_group_id(school, group):
+    """
+    Like get_linbo_group_id(), for groups read from devices.csv: a group that
+    cannot be given an id is logged and answered with None, so one such device
+    does not break a listing.
+    """
+
+    try:
+        return get_linbo_group_id(school, group)
+    except ValueError as error:
+        logging.getLogger(__name__).warning(f'Skipping a device group without a valid id: {error}')
+        return None
 
 
 def split_linbo_group_id(group_id):

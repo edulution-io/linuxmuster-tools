@@ -17,7 +17,7 @@ from ..common.checks import NameChecker
 from ..devices import Devices
 from ..ldapconnector import LMNLdapReader as lr
 from .config import LINBO_PATH, LinboConfigManager, read_config
-from .group_ids import LINBO_GROUP_SEPARATOR, get_linbo_group_id
+from .group_ids import LINBO_GROUP_SEPARATOR, get_linbo_group_id, try_get_linbo_group_id
 
 
 SESSION_SUFFIX = '_linbo-remote'
@@ -187,7 +187,7 @@ class LinboRemote:
         devices = Devices(school=school)
 
         if self.room:
-            return {get_linbo_group_id(school, d['group']) for d in devices.devices if d['room'] == self.room}
+            return {try_get_linbo_group_id(school, d['group']) for d in devices.devices if d['room'] == self.room} - {None}
 
         def is_targeted(device):
             if device['ip'] in self.clients:
@@ -196,7 +196,7 @@ class LinboRemote:
             prefixed = f'{school}-{hostname}' if school != 'default-school' else hostname
             return hostname in self.clients or prefixed in self.clients
 
-        return {get_linbo_group_id(school, d['group']) for d in devices.devices if is_targeted(d)}
+        return {try_get_linbo_group_id(school, d['group']) for d in devices.devices if is_targeted(d)} - {None}
 
     def _check_nr(self, name, nr):
         """
