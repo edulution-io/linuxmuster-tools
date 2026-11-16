@@ -34,6 +34,14 @@ ALLOWED_PATHS = [
     '/etc/linuxmuster/holidays.yml',                    # lmn_settings holidays configuration
     '/var/lib/linuxmuster/setup.ini',                   # lmn_settings
     '/tmp/setup.ini',                                   # setup wizard during install
+    # Upgrade transition. A server that comes from deb.linuxmuster.net still
+    # runs linuxmuster-webui7 until a later edulution release removes it, and
+    # the webui reads these two paths through LMNFile while its plugins load.
+    # Refusing them crashes the webui on its next restart. linuxmusterTools
+    # itself reads /etc/linuxmuster/tools/ldap.yml. Drop both entries together
+    # with the release that removes the webui.
+    '/etc/linuxmuster/webui/config.yml',                # linuxmuster-webui7 settings
+    '/usr/lib/linuxmuster-webui/plugins',               # linuxmuster-webui7 lmn_permissions
 ]
 
 EMPTY_LINE_MARKER = '###EMPTY#LINE'

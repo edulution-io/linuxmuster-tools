@@ -1,3 +1,16 @@
+linuxmuster-tools7 (1:7.4.20~edu1) lmn74; urgency=medium
+
+  * LMNFile allows /etc/linuxmuster/webui/config.yml and
+    /usr/lib/linuxmuster-webui/plugins again. A server upgraded from
+    deb.linuxmuster.net keeps linuxmuster-webui7 for now, and the webui reads
+    both paths through LMNFile while its plugins load: with 1:7.4.20~edu it
+    crashed on its next restart with "OSError: Access refused" (lmn_users,
+    lmn_quotas, ...). linuxmusterTools itself keeps reading
+    /etc/linuxmuster/tools/ldap.yml. Both entries go again with the release
+    that removes the webui.
+
+ -- Lukas Lukic-Spitznagel <lukas.spitznagel@netzint.de>  Mon, 16 Nov 2026 14:00:00 +0100
+
 linuxmuster-tools7 (1:7.4.20~edu) lmn74; urgency=medium
 
   * edulution fork. The package keeps its upstream name, so the epoch 1: is

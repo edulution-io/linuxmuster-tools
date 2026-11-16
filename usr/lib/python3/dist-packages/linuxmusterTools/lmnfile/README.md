@@ -195,7 +195,12 @@ Access is restricted to a whitelist of allowed paths:
 /etc/linuxmuster/holidays.yml
 /var/lib/linuxmuster/setup.ini
 /tmp/setup.ini
+/etc/linuxmuster/webui/config.yml
+/usr/lib/linuxmuster-webui/plugins
 ```
+
+The two webui paths are only there for servers upgraded from deb.linuxmuster.net,
+which still run linuxmuster-webui7 until a later edulution release removes it.
 
 Any path outside this list, or containing `..`, raises `IOError: Access refused.`
 
