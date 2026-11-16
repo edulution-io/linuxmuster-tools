@@ -23,8 +23,11 @@ def get_linbo_group_id(school, group):
     :param school: School name, e.g. 'default-school' or 'abc'
     :param group: Group as in devices.csv, e.g. 'raum101'
     :return: 'raum101' for default-school, 'abc__raum101' otherwise
+    :raises ValueError: the group contains the separator, so its id could name a group of another school
     """
 
+    if LINBO_GROUP_SEPARATOR in group:
+        raise ValueError(f'Group {group} must not contain {LINBO_GROUP_SEPARATOR}')
     if not school or school == DEFAULT_SCHOOL:
         return group
     return f'{school}{LINBO_GROUP_SEPARATOR}{group}'

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from .models import *
 from .boot_logs import _get_image_status_entries, _get_os_starts
 from .grub import GRUB_DIR_DEFAULT
-from .group_ids import LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id
+from .group_ids import DEFAULT_SCHOOL, LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id
 from ..devices import Devices
 from ..lmnfile import LMNFile
 from ..common.checks import NameChecker
@@ -35,7 +35,7 @@ def set_group_line(content, group_id):
 
     line = f'Group = {group_id}'
     if re.search(r'(?im)^[ \t]*Group[ \t]*=', content):
-        return re.sub(r'(?im)^[ \t]*Group[ \t]*=.*$', lambda _: line, content, count=1)
+        return re.sub(r'(?im)^[ \t]*Group[ \t]*=[^\r\n]*', lambda _: line, content, count=1)
     return re.sub(r'(?im)^([ \t]*\[LINBO\][ \t]*\r?\n)', lambda m: m.group(1) + line + '\n', content, count=1)
 
 
@@ -61,6 +61,8 @@ class LinboConfigManager:
 
         if self.school is None:
             return True
+        if self.school == DEFAULT_SCHOOL:
+            return LINBO_GROUP_SEPARATOR not in group_id
         return split_linbo_group_id(group_id)[0] == self.school
 
     def _check_owned(self, group_id):
