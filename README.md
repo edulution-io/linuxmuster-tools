@@ -33,17 +33,6 @@ This module groups some useful modules used in the linuxmuster.net's Webui:
 
 Please refer to each module's README for more details.
 
-## Maintenance Details
-
-Linuxmuster.net official | ✅  YES
-:---: | :---: 
-[Community support](https://ask.linuxmuster.net) | ✅  YES*
-Actively developed | ✅  YES
-Maintainer organisation |  Linuxmuster.net / Netzint GmbH
-Primary maintainer | [@kiarn](https://github.com/kiarn)
-    
-\* The linuxmuster community consits of people who are nice and happy to help. They are not directly involved in the development though, and might not be able to help in all cases.
-
 ## Installation
 
 ### 1. Import key
@@ -191,7 +180,6 @@ It's possible to open:
 >>> with LMNFile('/etc/linuxmuster/sophomorix/default-school/holidays.yml', 'w') as f:
 ...     f.write(data) # Saving to file
 ```
-
 
 ## Samba tool
 
