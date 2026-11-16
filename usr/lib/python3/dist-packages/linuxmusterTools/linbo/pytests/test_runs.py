@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import linuxmusterTools.linbo.runs as runs_module
+import linuxmusterTools.linbo.linbo_sync as linbo_sync_module
 from linuxmusterTools.linbo.linbo_sync import LinboRemote, LinboRemoteParameterError, supports_run_user
 from linuxmusterTools.linbo.runs import LinboRunNotFoundError, LinboRunReader, school_hostnames
 
@@ -177,9 +178,9 @@ def test_school_hostnames_prefix_non_default_schools(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fresh_run_user_probe():
-    supports_run_user.cache_clear()
+    linbo_sync_module._run_user_support.clear()
     yield
-    supports_run_user.cache_clear()
+    linbo_sync_module._run_user_support.clear()
 
 
 def help_output(text):
@@ -220,7 +221,33 @@ def test_run_user_is_not_passed_for_an_onboot_command():
     assert '--run-user' not in remote.built_cmd
 
 
-@pytest.mark.parametrize('user', ['a b', 'a;rm -rf', '', 'x' * 65, 'a\nb', '$(id)'])
+@pytest.mark.parametrize('user', ['a b', 'a;rm -rf', '', 'x' * 65, 'a\nb', 'bob\n', '$(id)'])
 def test_an_unsafe_run_user_is_refused(user):
     with pytest.raises(LinboRemoteParameterError):
         LinboRemote(clients=['10.0.0.5'], cmd='reboot', run_user=user).build()
+
+
+def test_a_failed_probe_is_asked_again():
+    calls = []
+
+    def run(*args, **kwargs):
+        calls.append(kwargs.get('timeout'))
+        if len(calls) == 1:
+            raise FileNotFoundError
+        return MagicMock(stdout='--run-user\n')
+
+    with patch('linuxmusterTools.linbo.linbo_sync.subprocess.run', side_effect=run):
+        assert supports_run_user() is False
+        assert supports_run_user() is True
+        assert supports_run_user() is True
+
+    assert len(calls) == 2
+    assert all(timeout for timeout in calls)
+
+
+def test_a_hanging_probe_is_not_a_support():
+    import subprocess
+
+    with patch('linuxmusterTools.linbo.linbo_sync.subprocess.run',
+               side_effect=subprocess.TimeoutExpired('linbo-remote', 5)):
+        assert supports_run_user() is False
