@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from linuxmusterTools.devices import Devices
 from .config import LINBO_PATH, LinboConfigManager
-from .group_ids import get_linbo_group_id
+from .group_ids import try_get_linbo_group_id
 from .dhcp import DHCP_SUBNETS_PATH
 from .grub import LinboGrubReader
 from ..common.timestamps import get_utc_mtime
@@ -73,7 +73,7 @@ class LinboChangeTracker:
         # Reload devices list
         self.devices_mgr.load()
 
-        school_groups = {get_linbo_group_id(self.school, group) for group in self.devices_mgr.groups}
+        school_groups = {try_get_linbo_group_id(self.school, group) for group in self.devices_mgr.groups} - {None}
         all_hosts_macs = self.devices_mgr.macs
 
         # Parse ids
