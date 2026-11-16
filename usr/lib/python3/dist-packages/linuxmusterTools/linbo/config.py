@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from .models import *
 from .boot_logs import _get_image_status_entries, _get_os_starts
 from .grub import GRUB_DIR_DEFAULT
-from .group_ids import DEFAULT_SCHOOL, LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id
+from .group_ids import DEFAULT_SCHOOL, LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id, try_get_linbo_group_id
 from ..devices import Devices
 from ..lmnfile import LMNFile
 from ..common.checks import NameChecker
@@ -753,7 +753,9 @@ def list_workstations(school='default-school', groups=[]):
         if school != 'default-school':
             if device['hostname']:
                 device['hostname'] = f'{school}-{device["hostname"]}'
-        group_id = get_linbo_group_id(school, str(device['group']))
+        group_id = try_get_linbo_group_id(school, str(device['group']))
+        if group_id is None:
+            continue
         if os.path.isfile(os.path.join(LINBO_PATH, 'start.conf.'+group_id)):
             if device['pxeFlag'] != '1' and device['pxeFlag'] != "2":
                 continue

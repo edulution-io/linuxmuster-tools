@@ -321,3 +321,33 @@ def test_linbo_remote_refuses_a_group_with_the_separator():
 def test_set_group_line_keeps_crlf_line_endings():
     content = '[LINBO]\r\nGroup = a\r\nCache = /dev/sda4\r\n'
     assert set_group_line(content, 'abc__a') == '[LINBO]\r\nGroup = abc__a\r\nCache = /dev/sda4\r\n'
+
+
+def test_try_get_linbo_group_id_skips_a_group_without_a_valid_id():
+    from linuxmusterTools.linbo.group_ids import try_get_linbo_group_id
+
+    assert try_get_linbo_group_id('abc', 'raum101') == 'abc__raum101'
+    assert try_get_linbo_group_id('default-school', 'raum__1') is None
+
+
+def test_a_device_with_an_invalid_group_is_skipped_by_the_workstation_listing(tmp_path, monkeypatch):
+    write_conf(tmp_path, 'raum101', LISTED_CONTENT)
+    write_conf(tmp_path, 'raum__1', LISTED_CONTENT)
+    devices = [
+        {'hostname': 'pc01', 'group': 'raum101', 'pxeFlag': '1'},
+        {'hostname': 'pc02', 'group': 'raum__1', 'pxeFlag': '1'},
+    ]
+    monkeypatch.setattr(config_module, 'Devices', fake_devices(devices))
+
+    assert list(list_workstations(school='default-school')) == ['raum101']
+
+
+def test_linbo_remote_skips_devices_with_an_invalid_group():
+    devices = [
+        {'ip': '10.0.0.5', 'hostname': 'pc01', 'group': 'raum101', 'room': 'r1'},
+        {'ip': '10.0.0.6', 'hostname': 'pc02', 'group': 'raum__1', 'room': 'r1'},
+    ]
+    with patch('linuxmusterTools.linbo.linbo_sync.lr.getval', return_value=['default-school']):
+        with patch('linuxmusterTools.linbo.linbo_sync.Devices', return_value=SimpleNamespace(devices=devices)):
+            remote = LinboRemote(room='r1', cmd='sync:1')
+            assert remote._target_groups() == {'raum101'}
