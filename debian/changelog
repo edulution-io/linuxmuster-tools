@@ -1,3 +1,22 @@
+linuxmuster-tools7 (1:7.4.21~edu) lmn74; urgency=high
+
+  * Merge upstream 7.4.21 (security release). Upstream notes:
+  * [security] [ldapconnector] The value of /search is escaped in the
+    LDAP filter.
+  * [passwords] Random first passwords use PWD_LENGTH of school.conf,
+    and a diceware passphrase with RANDOM_PWD = dice.
+  * [print] All LaTeX special characters are escaped, and the school is
+    forwarded when printing a schoolclass list.
+  * [samba] smbstatus is read from its json output, with the school
+    prefix and the users of a room.
+  * Minor fixes: expired certificates, malformed sophomorix log lines,
+    drives without properties, custom fields imported from the webui,
+    gzipped logs, hostname and room of machines.
+  * edulution fork: this build keeps the LMNFile change of 1:7.4.20~edu1,
+    which still allows the webui paths until the webui is removed.
+
+ -- Lukas Lukic-Spitznagel <lukas.spitznagel@netzint.de>  Tue, 18 Nov 2026 14:00:00 +0100
+
 linuxmuster-tools7 (1:7.4.20~edu1) lmn74; urgency=medium
 
   * LMNFile allows /etc/linuxmuster/webui/config.yml and
