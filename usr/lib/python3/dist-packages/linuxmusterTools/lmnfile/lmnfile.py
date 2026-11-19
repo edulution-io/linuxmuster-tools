@@ -264,7 +264,7 @@ class YAMLLoader(LMNFile):
                     allow_unicode=True
                 ).decode('utf-8')
             )
-        if not filecmp.cmp(tmp, self.file):
+        if not filecmp.cmp(tmp, self.file, shallow=False):
             self.backup()
             os.rename(tmp, self.file)
         else:
@@ -355,7 +355,7 @@ class CSVLoader(LMNFile):
                     f.write(first_field + '\n')
                 else:
                     writer.writerow(elt)
-        if not filecmp.cmp(tmp, self.file):
+        if not filecmp.cmp(tmp, self.file, shallow=False):
             self.backup()
             os.rename(tmp, self.file)
         else:
@@ -509,7 +509,7 @@ class StartConfLoader(LMNFile):
             f.write(content)
 
         if os.path.isfile(self.file):
-            if not filecmp.cmp(tmp, self.file):
+            if not filecmp.cmp(tmp, self.file, shallow=False):
                 self.backup()
                 os.rename(tmp, self.file)
             else:
