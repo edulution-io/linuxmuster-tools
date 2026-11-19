@@ -11,13 +11,14 @@ USER_DN = 'CN=johndoe,OU=7a,OU=default-school,DC=linuxmuster,DC=lan'
 
 
 class FakeLMNFile:
-    """Minimal stand-in for LMNFile, only supports the config.yml read used in _connect."""
+    """Minimal stand-in for LMNFile, only supports the ldap.yml read used in _connect."""
 
     def __init__(self, path, mode):
         pass
 
     def __enter__(self):
-        self.data = {'linuxmuster': {'ldap': {'searchdn': SEARCHDN}}}
+        # Flat schema of /etc/linuxmuster/tools/ldap.yml.
+        self.data = {'searchdn': SEARCHDN}
         return self
 
     def __exit__(self, *exc):
@@ -262,6 +263,7 @@ class TestConnectProvisioning:
         monkeypatch.setattr(conn_module.os, 'getuid', lambda: 0)
         monkeypatch.setattr(conn_module, 'is_samba_provisioned', lambda: True)
         monkeypatch.setattr(conn_module, 'LMNFile', FakeLMNFile)
+        monkeypatch.setattr(conn_module.os.path, 'isfile', lambda path: True)
 
         mock_conn = MagicMock()
         monkeypatch.setattr(ldap, 'initialize', lambda uri: mock_conn)
