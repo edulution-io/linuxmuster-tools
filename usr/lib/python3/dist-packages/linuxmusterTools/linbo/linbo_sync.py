@@ -16,6 +16,7 @@ from ..common.checks import NameChecker
 from ..devices import Devices
 from ..ldapconnector import LMNLdapReader as lr
 from .config import LINBO_PATH, LinboConfigManager, read_config
+from .group_ids import LINBO_GROUP_SEPARATOR, get_linbo_group_id, try_get_linbo_group_id
 
 
 SESSION_SUFFIX = '_linbo-remote'
@@ -108,6 +109,9 @@ class LinboRemote:
         if self.school and self.school not in lr.getval('/schools', 'ou'):
             raise LinboRemoteParameterError(f'{self.school} is not a valid school.')
 
+        if self.group and LINBO_GROUP_SEPARATOR in self.group:
+            raise LinboRemoteParameterError(f'A group must not contain {LINBO_GROUP_SEPARATOR}.')
+
         if self.clients and self.group:
             raise LinboRemoteParameterError(f"group and clients are mutually exclusive.")
 
@@ -136,18 +140,19 @@ class LinboRemote:
         hostname, since -i (like this method) accepts either an ip or a
         hostname.
 
-        :return: Set of group names.
+        :return: Set of LINBO group ids (see group_ids.py).
         :rtype: set of str
         """
 
-        if self.group:
-            return {self.group}
-
         school = self.school or 'default-school'
+
+        if self.group:
+            return {get_linbo_group_id(school, self.group)}
+
         devices = Devices(school=school)
 
         if self.room:
-            return {d['group'] for d in devices.devices if d['room'] == self.room}
+            return {try_get_linbo_group_id(school, d['group']) for d in devices.devices if d['room'] == self.room} - {None}
 
         def is_targeted(device):
             if device['ip'] in self.clients:
@@ -156,7 +161,7 @@ class LinboRemote:
             prefixed = f'{school}-{hostname}' if school != 'default-school' else hostname
             return hostname in self.clients or prefixed in self.clients
 
-        return {d['group'] for d in devices.devices if is_targeted(d)}
+        return {try_get_linbo_group_id(school, d['group']) for d in devices.devices if is_targeted(d)} - {None}
 
     def _check_nr(self, name, nr):
         """

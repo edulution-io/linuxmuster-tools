@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import filecmp
 from pathlib import Path
@@ -9,6 +10,7 @@ from datetime import datetime, timezone
 from .models import *
 from .boot_logs import _get_image_status_entries, _get_os_starts
 from .grub import GRUB_DIR_DEFAULT
+from .group_ids import DEFAULT_SCHOOL, LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id, try_get_linbo_group_id
 from ..devices import Devices
 from ..lmnfile import LMNFile
 from ..common.checks import NameChecker
@@ -23,12 +25,49 @@ EXAMPLE_SIDECAR_TYPES = ('reg', 'postsync', 'prestart')
 logger = logging.getLogger(__name__)
 name_checker = NameChecker()
 
-class LinboConfigManager:
+def set_group_line(content, group_id):
+    """
+    Set the ``Group =`` line of a start.conf to its group id, so that a client
+    reading it offline gets the same HOSTGROUP as from the file name. Only the
+    first ``Group`` line is changed, a missing one is added to ``[LINBO]``.
+    A start.conf without a ``[LINBO]`` section is returned unchanged.
+    """
 
-    def __init__(self, school='default-school'):
+    line = f'Group = {group_id}'
+    if re.search(r'(?im)^[ \t]*Group[ \t]*=', content):
+        return re.sub(r'(?im)^[ \t]*Group[ \t]*=[^\r\n]*', lambda _: line, content, count=1)
+    return re.sub(r'(?im)^([ \t]*\[LINBO\][ \t]*\r?\n)', lambda m: m.group(1) + line + '\n', content, count=1)
+
+
+class LinboConfigManager:
+    """
+    Manage the start.conf files in /srv/linbo.
+
+    :param school: Restrict the manager to the hardware groups of this school
+                   (see group_ids.py). Without a school it manages all groups
+                   of the server, as the global administrator does.
+    """
+
+    def __init__(self, school=None):
         self.school = school
         self.linbo_configs = {}
         self.group_ids = self._list_group_ids()
+
+    def owns(self, group_id):
+        """
+        Whether a group id belongs to the school of this manager. A manager
+        without a school owns every group.
+        """
+
+        if self.school is None:
+            return True
+        if self.school == DEFAULT_SCHOOL:
+            return LINBO_GROUP_SEPARATOR not in group_id
+        return split_linbo_group_id(group_id)[0] == self.school
+
+    def _check_owned(self, group_id):
+        if not self.owns(group_id):
+            raise ValueError(f"Group {group_id} does not belong to school {self.school}")
 
     def _list_group_ids(self):
         """
@@ -51,6 +90,9 @@ class LinboConfigManager:
                     logger.warning(f"Invalid config name, this file will be ignored: {config}")
                     continue
 
+                if not self.owns(group):
+                    continue
+
                 group_ids.append(group)
         return group_ids
 
@@ -60,6 +102,9 @@ class LinboConfigManager:
         Parse a single group's start.conf and cache it in linbo_configs.
         """
 
+
+        if not self.owns(group):
+            return None
 
         config = os.path.join(LINBO_PATH, f'start.conf.{group}')
         try:
@@ -130,12 +175,12 @@ class LinboConfigManager:
 
         results = []
         for group_id in group_ids:
-            if not name_checker.check_linbo_conf_name(group_id):
+            if not name_checker.check_linbo_conf_name(group_id) or not self.owns(group_id):
                 continue
 
             conf_path = Path(LINBO_PATH) / f'start.conf.{group_id}'
 
-            if not os.path.isfile(f"/srv/linbo/start.conf.{group_id}"):
+            if not os.path.isfile(conf_path):
                 logger.warning(f"Startconf file start.conf.{group_id} not found.")
                 continue
 
@@ -166,6 +211,10 @@ class LinboConfigManager:
 
         if not name_checker.check_linbo_conf_name(group_id):
             raise ValueError(f"Invalid group id: {group_id}")
+        self._check_owned(group_id)
+
+        if LINBO_GROUP_SEPARATOR in group_id:
+            content = set_group_line(content, group_id)
 
         conf_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}')
         tmp_path = conf_path + '_tmp'
@@ -195,6 +244,7 @@ class LinboConfigManager:
 
         if not name_checker.check_linbo_conf_name(group_id):
             raise ValueError(f"Invalid group id: {group_id}")
+        self._check_owned(group_id)
 
         conf_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}')
         if not os.path.isfile(conf_path):
@@ -296,6 +346,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         prefix = f'.start.conf.{group_id}.bak.'
         backups = []
@@ -333,6 +384,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         backup_path = Path(LINBO_PATH) / f'.start.conf.{group_id}.bak.{int(timestamp)}'
         if not backup_path.is_file():
@@ -364,6 +416,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         backup_path = Path(LINBO_PATH) / f'.start.conf.{group_id}.bak.{int(timestamp)}'
         if not backup_path.is_file():
@@ -389,6 +442,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         vdi_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}.vdi')
         if not os.path.isfile(vdi_path):
@@ -416,6 +470,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         vdi_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}.vdi')
         with LMNFile(vdi_path, 'w') as vdi_file:
@@ -437,6 +492,7 @@ class LinboConfigManager:
 
 
         name_checker.validate_linbo_conf_name(group_id)
+        self._check_owned(group_id)
 
         vdi_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}.vdi')
         if not os.path.isfile(vdi_path):
@@ -676,7 +732,9 @@ def group_os(workstations):
 
 def list_workstations(school='default-school', groups=[]):
     """
-    Generate a dict with workstations and parameters out of devices file
+    Generate a dict with workstations and parameters out of devices file.
+    The dict is keyed by LINBO group id (see group_ids.py): the plain group for
+    default-school, ``<school>__<group>`` for every other school.
 
     :param context: user context set in views.py
     :return: Dict with all linbo informations for all workstations.
@@ -695,13 +753,16 @@ def list_workstations(school='default-school', groups=[]):
         if school != 'default-school':
             if device['hostname']:
                 device['hostname'] = f'{school}-{device["hostname"]}'
-        if os.path.isfile(os.path.join(LINBO_PATH, 'start.conf.'+str(device['group']))):
+        group_id = try_get_linbo_group_id(school, str(device['group']))
+        if group_id is None:
+            continue
+        if os.path.isfile(os.path.join(LINBO_PATH, 'start.conf.'+group_id)):
             if device['pxeFlag'] != '1' and device['pxeFlag'] != "2":
                 continue
-            elif device['group'] not in devices_dict.keys():
-                devices_dict[device['group']] = {'grp': device['group'], 'hosts': [device]}
+            elif group_id not in devices_dict.keys():
+                devices_dict[group_id] = {'grp': group_id, 'hosts': [device]}
             else:
-                devices_dict[device['group']]['hosts'].append(device)
+                devices_dict[group_id]['hosts'].append(device)
     return group_os(devices_dict)
 
 def last_sync_all(workstations, laststart=False):
