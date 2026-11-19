@@ -116,7 +116,9 @@ class LinboImage:
         try:
             subprocess.check_output(['/usr/sbin/linbo-torrent', 'stop', os.path.join(self.path, f'{self.image}.torrent')])
         except Exception as e:
-            logger.error(f'Unable to stop torrent service for {self.image} : {e.output}')
+            # Only a CalledProcessError carries output; a missing binary raises
+            # FileNotFoundError, which has none.
+            logger.error(f'Unable to stop torrent service for {self.image} : {getattr(e, "output", e)}')
 
     def _torrent_create(self):
         """
