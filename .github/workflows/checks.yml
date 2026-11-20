@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   checks:
-    uses: edulution-io/edulution-package-server/.github/workflows/lmn-checks.yml@edulution/lmn-checks
+    uses: edulution-io/edulution-package-server/.github/workflows/lmn-checks.yml@main
     with:
       build-runner: ubuntu-24.04
       build-setup: sudo apt-get update && sudo apt-get install -y debhelper build-essential
