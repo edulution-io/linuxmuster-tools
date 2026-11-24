@@ -351,3 +351,43 @@ def test_linbo_remote_skips_devices_with_an_invalid_group():
         with patch('linuxmusterTools.linbo.linbo_sync.Devices', return_value=SimpleNamespace(devices=devices)):
             remote = LinboRemote(room='r1', cmd='sync:1')
             assert remote._target_groups() == {'raum101'}
+
+
+# ── dnsmasq proxy export ─────────────────────────────────────────────────
+
+
+def _dnsmasq(school=None, hosts=None):
+    from linuxmusterTools.linbo.dhcp import LinboDhcpExporter
+
+    hosts = hosts or [
+        {'pxeEnabled': True, 'mac': 'aa:bb:cc:00:00:01', 'group': 'raum101'},
+        {'pxeEnabled': True, 'mac': 'aa:bb:cc:00:00:02', 'group': 'raum101'},
+    ]
+    kwargs = {} if school is None else {'school': school}
+    return LinboDhcpExporter().generate_dnsmasq_proxy(hosts, server_ip='10.0.0.1', **kwargs)
+
+
+def test_dnsmasq_proxy_default_school_keeps_the_plain_group():
+    config = _dnsmasq()
+    assert 'dhcp-option=tag:raum101,40,raum101' in config
+    assert 'dhcp-host=aa:bb:cc:00:00:01,set:raum101' in config
+
+
+def test_dnsmasq_proxy_qualifies_the_group_of_another_school():
+    config = _dnsmasq('abc')
+    assert 'dhcp-option=tag:abc__raum101,40,abc__raum101' in config
+    assert 'dhcp-host=aa:bb:cc:00:00:01,set:abc__raum101' in config
+    assert 'dhcp-host=aa:bb:cc:00:00:02,set:abc__raum101' in config
+    assert config.count('40,') == 1
+    assert '40,raum101' not in config
+
+
+def test_dnsmasq_proxy_skips_a_host_whose_group_has_no_valid_id():
+    config = _dnsmasq('abc', [
+        {'pxeEnabled': True, 'mac': 'aa:bb:cc:00:00:01', 'group': 'raum101'},
+        {'pxeEnabled': True, 'mac': 'aa:bb:cc:00:00:02', 'group': 'raum__1'},
+        {'pxeEnabled': True, 'mac': 'aa:bb:cc:00:00:03', 'group': ''},
+    ])
+    assert 'aa:bb:cc:00:00:01' in config
+    assert 'aa:bb:cc:00:00:02' not in config
+    assert 'aa:bb:cc:00:00:03' not in config
