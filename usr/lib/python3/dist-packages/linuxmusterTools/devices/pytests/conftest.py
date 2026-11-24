@@ -61,6 +61,15 @@ def redirect_devices_storage(tmp_path, monkeypatch):
 
     monkeypatch.setattr(devices_module, 'LMNFile', factory)
 
+    # Devices() also stats the inventory for csv_mtime, through its own path
+    # literal; without this the test reads the mtime of the host's real
+    # devices.csv (None on a machine without one).
+    real_get_utc_mtime = devices_module.get_utc_mtime
+    monkeypatch.setattr(
+        devices_module, 'get_utc_mtime',
+        lambda path: real_get_utc_mtime(tmp_path / str(path).lstrip('/'))
+    )
+
 
 @pytest.fixture
 def devices_path(tmp_path):
