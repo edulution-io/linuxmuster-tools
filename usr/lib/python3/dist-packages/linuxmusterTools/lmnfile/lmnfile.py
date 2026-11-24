@@ -9,7 +9,6 @@ import abc
 import csv
 import re
 import magic
-import filecmp
 import stat
 import tempfile
 import time
@@ -47,6 +46,17 @@ ALLOWED_PATHS = [
 EMPTY_LINE_MARKER = '###EMPTY#LINE'
 HEADER_MARKER = '#HEADERS#'
 BOM_MARKER = b'\xef\xbb\xbf'
+
+
+def same_content(path_a, path_b):
+    """
+    Compare two files byte by byte. filecmp is not usable here: it caches its
+    results by size and mtime, so a write within the same timestamp tick could
+    be taken for an unchanged file and dropped.
+    """
+
+    with open(path_a, 'rb') as a, open(path_b, 'rb') as b:
+        return a.read() == b.read()
 
 
 def convertBool(boolean):
@@ -264,7 +274,7 @@ class YAMLLoader(LMNFile):
                     allow_unicode=True
                 ).decode('utf-8')
             )
-        if not filecmp.cmp(tmp, self.file):
+        if not same_content(tmp, self.file):
             self.backup()
             os.rename(tmp, self.file)
         else:
@@ -355,7 +365,7 @@ class CSVLoader(LMNFile):
                     f.write(first_field + '\n')
                 else:
                     writer.writerow(elt)
-        if not filecmp.cmp(tmp, self.file):
+        if not same_content(tmp, self.file):
             self.backup()
             os.rename(tmp, self.file)
         else:
@@ -509,7 +519,7 @@ class StartConfLoader(LMNFile):
             f.write(content)
 
         if os.path.isfile(self.file):
-            if not filecmp.cmp(tmp, self.file):
+            if not same_content(tmp, self.file):
                 self.backup()
                 os.rename(tmp, self.file)
             else:
