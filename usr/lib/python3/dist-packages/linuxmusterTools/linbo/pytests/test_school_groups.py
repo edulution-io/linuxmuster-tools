@@ -330,6 +330,16 @@ def test_try_get_linbo_group_id_skips_a_group_without_a_valid_id():
     assert try_get_linbo_group_id('default-school', 'raum__1') is None
 
 
+@pytest.mark.parametrize('school', ['default-school', 'abc', None])
+@pytest.mark.parametrize('group', ['', ' ', '\t', None])
+def test_an_empty_group_has_no_id(school, group):
+    from linuxmusterTools.linbo.group_ids import try_get_linbo_group_id
+
+    with pytest.raises(ValueError):
+        get_linbo_group_id(school, group)
+    assert try_get_linbo_group_id(school, group) is None
+
+
 def test_a_device_with_an_invalid_group_is_skipped_by_the_workstation_listing(tmp_path, monkeypatch):
     write_conf(tmp_path, 'raum101', LISTED_CONTENT)
     write_conf(tmp_path, 'raum__1', LISTED_CONTENT)
