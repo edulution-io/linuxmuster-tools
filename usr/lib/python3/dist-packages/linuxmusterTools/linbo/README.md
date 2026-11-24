@@ -88,6 +88,14 @@ config - a group without one simply has VDI disabled.
 
 ---
 
+## Group ids and dnsmasq
+
+A LINBO group id names `start.conf.<id>` and `<id>.cfg`. `get_linbo_group_id(school, group)` (`linbo.group_ids`) builds it: the plain group in `default-school`, `<school>__<group>` in every other school (`abc__raum101`), so two schools can use the same group name. A group that contains `__` raises `ValueError`; `try_get_linbo_group_id()` logs it and returns `None` instead.
+
+`LinboDhcpExporter.generate_dnsmasq_proxy(hosts, server_ip=None, school='default-school')` hands each host the group id of `school` as NIS domain (option 40). Hosts without PXE, with an empty group or with a group containing `__` are left out of the config.
+
+---
+
 ## Image manager
 
 `LinboImageManager` provides an object to manage all linbo images, backups and extra files (rename, delete, ... ).
