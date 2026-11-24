@@ -265,3 +265,24 @@ def test_runs_sort_by_instant_across_offset_formats(log_dir):
 def test_a_record_with_a_non_string_hostname_is_skipped(log_dir):
     write_records(log_dir, '{"hostname": ["a"], "run_id": "x"}', record('pc01'))
     assert [r['hosts'][0]['hostname'] for r in LinboRunReader().list_runs(hostnames={'pc01'})] == ['pc01']
+
+
+def test_run_start_and_end_compare_instants_not_strings(log_dir):
+    # 12:30+02:00 is 10:30Z, 11:00+00:00 is later, although it sorts first as text
+    write_records(
+        log_dir,
+        record('pc01', start='2026-10-01T12:30:00+02:00', end='2026-10-01T12:40:00+02:00'),
+        record('pc02', start='2026-10-01T11:00:00+00:00', end='2026-10-01T11:10:00+00:00'),
+    )
+    run = LinboRunReader().list_runs()[0]
+    assert run['start'] == '2026-10-01T12:30:00+02:00'
+    assert run['end'] == '2026-10-01T11:10:00+00:00'
+
+
+def test_run_start_ignores_an_unreadable_start_of_another_host(log_dir):
+    write_records(
+        log_dir,
+        record('pc01', start='garbage'),
+        record('pc02', start='2026-10-01T12:00:00+0200'),
+    )
+    assert LinboRunReader().list_runs()[0]['start'] == '2026-10-01T12:00:00+0200'

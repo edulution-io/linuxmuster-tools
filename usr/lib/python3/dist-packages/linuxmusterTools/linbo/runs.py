@@ -24,17 +24,39 @@ DEFAULT_LIMIT = 50
 logger = logging.getLogger(__name__)
 
 
-def _start_key(run):
+def _instant(value):
     """
-    Sort key of a run by its start time. Records written by older linbo-remote
-    versions use a +0200 offset, newer ones +02:00; both parse. Without a
-    readable start a run sorts last.
+    A timestamp of the run record as an aware datetime, None if it is missing
+    or unreadable. Records written by older linbo-remote versions use a +0200
+    offset, newer ones +02:00; both parse. Compare these, never the strings:
+    different offsets (DST) order wrongly as text.
     """
 
     try:
-        return datetime.fromisoformat(run['start']).astimezone(timezone.utc)
+        return datetime.fromisoformat(value).astimezone(timezone.utc)
     except (TypeError, ValueError):
-        return datetime.min.replace(tzinfo=timezone.utc)
+        return None
+
+
+def _start_key(run):
+    """Sort key of a run by its start time; without a readable start a run sorts last."""
+
+    return _instant(run['start']) or datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _earliest(values):
+    """The earliest of the timestamps by instant, unreadable ones only if none is readable."""
+
+    values = [v for v in values if v]
+    return min(values, key=lambda v: (_instant(v) is None, _instant(v) or 0), default=None)
+
+
+def _latest(values):
+    """The latest of the timestamps by instant, unreadable ones only if none is readable."""
+
+    values = [v for v in values if v]
+    readable = [v for v in values if _instant(v)]
+    return max(readable or values, key=lambda v: _instant(v) or 0, default=None)
 
 
 class LinboRunNotFoundError(LookupError):
@@ -118,9 +140,9 @@ class LinboRunReader:
                 'hosts': [],
             })
             run['hosts'].append(host)
-            run['start'] = min(filter(None, [run['start'], host['start']]), default=None)
+            run['start'] = _earliest([run['start'], host['start']])
             ends = [h['end'] for h in run['hosts']]
-            run['end'] = None if None in ends else max(ends)
+            run['end'] = None if None in ends else _latest(ends)
 
         for run in runs.values():
             statuses = {h['status'] for h in run['hosts']}
