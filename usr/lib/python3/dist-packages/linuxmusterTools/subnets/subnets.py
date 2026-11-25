@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from ..lmnfile import LMNFile
+from ..lmnfile.lmnfile import EMPTY_LINE_MARKER
 from ..common.timestamps import get_utc_mtime
 
 
@@ -35,16 +36,35 @@ class Subnets:
         self.subnets = []
 
         with LMNFile(self.path, 'r') as subnets_csv:
-            for subnet in subnets_csv.read():
-                # Skip comment lines and empty lines.
-                network = (subnet.get('network') or '').strip()
-                if not network or network.startswith('#'):
-                    continue
-
-                self.subnets.append(subnet)
+            self.subnets = self.only_subnets(subnets_csv.read())
 
         self.networks = list({s['network'] for s in self.subnets if s.get('network')})
         self.csv_mtime = get_utc_mtime(Path(self.path))
+
+    @staticmethod
+    def only_subnets(rows):
+        """
+        Leave out comment lines and empty lines.
+        """
+
+        return [
+            row for row in rows
+            if (row.get('network') or '').strip()
+            and not row['network'].strip().startswith(('#', EMPTY_LINE_MARKER))
+        ]
+
+    @classmethod
+    def check_rows(cls, rows):
+        """
+        Validate rows before they are written, see check_conf().
+
+        :param rows: List of dict, one per line, comments included
+        :return: List of error messages, False if everything is valid
+        """
+
+        checker = cls.__new__(cls)
+        checker.subnets = cls.only_subnets(rows)
+        return checker.check_conf()
 
     def filter(self, networks=[]):
         """

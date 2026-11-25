@@ -318,3 +318,12 @@ def test_import_subnets_decodes_invalid_utf8_with_replace(monkeypatch):
     # Must not raise UnicodeDecodeError thanks to errors='replace'.
     assert isinstance(result['output'], str)
     assert result['returncode'] == 0
+
+
+def test_check_rows_ignores_comments_and_reports_errors():
+    row = {'network': '10.0.0.0/16', 'routerIp': '10.0.0.254', 'beginRange': '10.0.0.100', 'endRange': '10.0.0.200',
+           'nameServer': '', 'nextServer': '', 'setupFlag': 'SETUP'}
+    rows = [{'network': '# comment'}, {'network': '###EMPTY#LINE'}, {'network': None}, row]
+    assert Subnets.check_rows(rows) is False
+    assert Subnets.check_rows([*rows, row]) == ['10.0.0.0/16 is defined 2 times']
+    assert Subnets.check_rows([{**row, 'routerIp': '192.168.0.1'}])
