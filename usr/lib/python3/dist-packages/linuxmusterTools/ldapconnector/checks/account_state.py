@@ -17,7 +17,8 @@ def get_account_state(dn):
 
     :param dn: distinguishedName of the account
     :type dn: basestring
-    :return: {'disabled': bool, 'pwd_last_set': datetime in UTC or None}, None if there is no such account
+    :return: {'disabled': bool, 'pwd_last_set': datetime in UTC or None, 'pwd_marker': basestring},
+        None if there is no such account
     :rtype: dict
     """
 
@@ -33,4 +34,18 @@ def get_account_state(dn):
     if filetime > 0:
         changed = datetime.fromtimestamp(filetime / 10**7 - EPOCH_OFFSET, tz=timezone.utc)
 
-    return {'disabled': bool(control & ACCOUNTDISABLE), 'pwd_last_set': changed}
+    return {'disabled': bool(control & ACCOUNTDISABLE), 'pwd_last_set': changed, 'pwd_marker': str(filetime)}
+
+
+def password_marker(state):
+    """
+    Value which changes with every password change, at the full precision of
+    the directory.
+
+    :param state: Result of get_account_state()
+    :type state: dict
+    :return: Marker, None without an account
+    :rtype: basestring
+    """
+
+    return state['pwd_marker'] if state else None
