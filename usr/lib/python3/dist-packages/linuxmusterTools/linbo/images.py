@@ -855,6 +855,11 @@ class LinboImageManager:
         for name, image_group in self.groups.items():
             base_image = image_group.base
 
+            # One unreadable image must not hide all the others.
+            if base_image is None:
+                logger.warning(f"Image {name} has no readable .info, leaving it out of the manifest.")
+                continue
+
             files = [{
                 "name": base_image.image,
                 "size": base_image.info_file.imagesize,

@@ -388,9 +388,11 @@ class DeviceManager:
 
         if result:
             # More than one result should not happen
+            # A device which never joined the domain has no password yet
             return {
-                'unicodePwd': base64.b64encode(result[0]['unicodePwd'][0]).decode(),
-                'supplementalCredentials': base64.b64encode(result[0]['supplementalCredentials'][0]).decode(),
+                attribute: base64.b64encode(result[0][attribute][0]).decode()
+                for attribute in ('unicodePwd', 'supplementalCredentials')
+                if attribute in result[0]
             }
 
         return {}
