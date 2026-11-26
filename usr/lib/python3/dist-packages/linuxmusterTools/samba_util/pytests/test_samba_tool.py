@@ -524,3 +524,33 @@ def test_set_credentials_calls_modify_ldif_with_expected_content(monkeypatch):
     assert f'unicodePwd:: {unicode_pwd}' in ldif
     assert f'supplementalCredentials:: {supplemental}' in ldif
     assert controls == ['relax:0', 'local_oid:1.3.6.1.4.1.7165.4.3.7:0', 'local_oid:1.3.6.1.4.1.7165.4.3.12:0']
+
+
+# --- DeviceManager.get_credentials -------------------------------------------
+
+class FakeDeviceSamDB:
+    def __init__(self, result):
+        self.result = result
+
+    def search(self, *args, **kwargs):
+        return self.result
+
+
+def _device_manager(result):
+    manager = DeviceManager.__new__(DeviceManager)
+    manager.samdb = FakeDeviceSamDB(result)
+    return manager
+
+
+@pytest.mark.parametrize('attributes, expected', [
+    ({'unicodePwd': [b'a'], 'supplementalCredentials': [b'b']}, {'unicodePwd': 'YQ==', 'supplementalCredentials': 'Yg=='}),
+    ({'unicodePwd': [b'a']}, {'unicodePwd': 'YQ=='}),
+    ({}, {}),
+])
+def test_get_credentials_returns_the_hashes_the_device_has(attributes, expected):
+    assert _device_manager([attributes]).get_credentials('pc01') == expected
+
+
+def test_get_credentials_of_an_unknown_device_is_empty():
+    assert _device_manager([]).get_credentials('nope') == {}
+

@@ -373,6 +373,20 @@ class DeviceManager:
             logger.warning(f'{SAMDB_PATH} not found, is linuxmuster installed ?')
 
     def get_credentials(self, device_cn, school='default-school'):
+        """
+        Read the password hashes of a device account.
+
+        :param device_cn: cn of the device
+        :type device_cn: basestring
+        :param school: School of the device
+        :type school: basestring
+        :return: base64 of unicodePwd and supplementalCredentials. Only the
+            attributes the account has: a device which never joined the domain
+            has none, so the dict may be partial or empty. It is empty as well
+            if there is no such device, check that the device exists first.
+        :rtype: dict
+        """
+
         if self.samdb is None:
             raise RuntimeError(
                 f'Cannot read device credentials: {SAMDB_PATH} could not be opened. '

@@ -418,7 +418,7 @@ class LinboImageGroup:
         self.error = None
         try:
             self.base = LinboImage(self.name)
-        except IncompleteImageInfoError as e:
+        except (IncompleteImageInfoError, OSError) as e:
             # Isolated here rather than left to propagate: one image with a
             # broken .info must not take the whole manager's listing down with
             # it. The group still exists, flagged, so it stays visible instead
@@ -744,6 +744,10 @@ class LinboImageManager:
         if os.path.isdir(os.path.join(LINBO_PATH, new_name)):
             raise ImageExistsError(os.path.join(LINBO_PATH, new_name))
 
+        if group in self.groups and self.groups[group].base is None:
+            # The copy could not be loaded either, and would stay half-built
+            raise RuntimeError(f"Cannot duplicate image group {group}: {self.groups[group].error}")
+
         if group in self.groups:
             # A torrent embeds the file name it describes and the hash file
             # describes that torrent: copying them under a new name would only
@@ -857,53 +861,65 @@ class LinboImageManager:
 
             # One unreadable image must not hide all the others.
             if base_image is None:
-                logger.warning(f"Image {name} has no readable .info, leaving it out of the manifest.")
+                logger.warning(f"Image {name} is left out of the manifest: {image_group.error}")
                 continue
 
-            files = [{
-                "name": base_image.image,
-                "size": base_image.info_file.imagesize,
-                "type": "image"
-            }]
-            files_ext = []
-
-            md5_content = None
-            image_path = f"{base_image.path}/{base_image.image}"
-            updated = os.stat(image_path).st_mtime
-
-            for ext in ALL_FILES_EXT:
-                if ext in EXTRA_COMMON_FILES:
-                    ext_name = f"{name}.{ext}"
-                else:
-                    ext_name = f"{base_image.image}.{ext}"
-
-                file_path = f"{LINBO_PATH}/{name}/{ext_name}"
-
-                if os.path.isfile(file_path):
-                    size = os.stat(file_path).st_size
-                    files_ext.append(ext)
-                    files.append({
-                        "name": ext_name,
-                        "size": size,
-                        "type": "extra_file"
-                    })
-
-                    if ext == "md5":
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            md5_content = f.read().strip().split()[0]
-
-            images_list.append({
-                "name": base_image.image,
-                "filename": base_image.image,
-                "base": name,
-                "path": f"images/{name}/{base_image.image}",
-                "size": base_image.info_file.imagesize,
-                "md5": md5_content,
-                "info": base_image.info_file.as_dict(),
-                "description": base_image.extras['desc'],
-                "extra_files": files_ext,
-                "files": files,
-                "updatedAt": datetime.fromtimestamp(updated, tz=timezone.utc).isoformat(),
-            })
+            try:
+                images_list.append(self._image_infos(name, base_image))
+            except (OSError, ValueError) as e:
+                logger.warning(f"Image {name} is left out of the manifest: {e}")
 
         return images_list
+
+    def _image_infos(self, name, base_image):
+        """
+        Manifest entry of one image group, see get_images_infos().
+        """
+
+        files = [{
+            "name": base_image.image,
+            "size": base_image.info_file.imagesize,
+            "type": "image"
+        }]
+        files_ext = []
+
+        md5_content = None
+        image_path = f"{base_image.path}/{base_image.image}"
+        updated = os.stat(image_path).st_mtime
+
+        for ext in ALL_FILES_EXT:
+            if ext in EXTRA_COMMON_FILES:
+                ext_name = f"{name}.{ext}"
+            else:
+                ext_name = f"{base_image.image}.{ext}"
+
+            file_path = f"{LINBO_PATH}/{name}/{ext_name}"
+
+            if os.path.isfile(file_path):
+                size = os.stat(file_path).st_size
+                files_ext.append(ext)
+                files.append({
+                    "name": ext_name,
+                    "size": size,
+                    "type": "extra_file"
+                })
+
+                if ext == "md5":
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        # Empty after an interrupted checksum
+                        parts = f.read().split()
+                        md5_content = parts[0] if parts else None
+
+        return {
+            "name": base_image.image,
+            "filename": base_image.image,
+            "base": name,
+            "path": f"images/{name}/{base_image.image}",
+            "size": base_image.info_file.imagesize,
+            "md5": md5_content,
+            "info": base_image.info_file.as_dict(),
+            "description": base_image.extras['desc'],
+            "extra_files": files_ext,
+            "files": files,
+            "updatedAt": datetime.fromtimestamp(updated, tz=timezone.utc).isoformat(),
+        }

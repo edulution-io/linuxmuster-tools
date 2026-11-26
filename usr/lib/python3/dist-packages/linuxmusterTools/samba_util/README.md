@@ -67,6 +67,8 @@ groups.remove_members('7b', ['jdupont'])
 ```python
 devices = DeviceManager()
 creds = devices.get_credentials('client01')       # base64-encoded unicodePwd / supplementalCredentials
+# creds only holds the hashes the account has: {} for a device which never joined
+# the domain (and for an unknown device), so check for both keys before setting them
 devices.set_credentials('client01', hash_pwd_b64, hash_supplemental_b64)
 ```
 
