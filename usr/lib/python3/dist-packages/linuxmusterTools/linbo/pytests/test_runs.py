@@ -286,3 +286,60 @@ def test_run_start_ignores_an_unreadable_start_of_another_host(log_dir):
         record('pc02', start='2026-10-01T12:00:00+0200'),
     )
     assert LinboRunReader().list_runs()[0]['start'] == '2026-10-01T12:00:00+0200'
+
+
+# ── start lines (record version 2) ───────────────────────────────────────
+
+
+def start_line(hostname, **kwargs):
+    """The line linbo-remote writes when a host's run begins: no end, no rc."""
+    return record(hostname, rc=None, end=None, v=2, **kwargs)
+
+
+def end_line(hostname, **kwargs):
+    return record(hostname, v=2, **kwargs)
+
+
+def test_a_run_with_one_of_three_hosts_finished_is_running(log_dir):
+    write_records(
+        log_dir,
+        start_line('pc01'), start_line('pc02'), start_line('pc03'),
+        end_line('pc02'),
+    )
+    run = LinboRunReader().list_runs()[0]
+    assert [(h['hostname'], h['status']) for h in run['hosts']] == [
+        ('pc01', 'running'), ('pc02', 'ok'), ('pc03', 'running'),
+    ]
+    assert run['status'] == 'running'
+    assert run['end'] is None
+
+
+def test_the_end_line_replaces_the_start_line_of_its_host(log_dir):
+    write_records(log_dir, start_line('pc01'), start_line('pc02'), end_line('pc01'), end_line('pc02', rc=1))
+    run = LinboRunReader().list_runs()[0]
+    assert [(h['hostname'], h['status'], h['rc']) for h in run['hosts']] == [
+        ('pc01', 'ok', 0), ('pc02', 'failed', 1),
+    ]
+    assert run['status'] == 'failed'
+    assert run['end'] == '2026-10-01T12:05:00+02:00'
+
+
+def test_a_start_line_after_the_end_line_does_not_hide_it(log_dir):
+    write_records(log_dir, end_line('pc01'), start_line('pc01'))
+    host = LinboRunReader().list_runs()[0]['hosts'][0]
+    assert host['status'] == 'ok'
+    assert host['rc'] == 0
+
+
+def test_start_and_end_line_without_run_id_are_one_run(log_dir):
+    write_records(log_dir, start_line('pc01', run_id=None), end_line('pc01', run_id=None))
+    runs = LinboRunReader().list_runs()
+    assert len(runs) == 1
+    assert [h['status'] for h in runs[0]['hosts']] == ['ok']
+
+
+def test_the_log_of_a_running_host_can_be_read(log_dir):
+    name = 'pc01_linbo-remote_20261001120000.log'
+    (log_dir / name).write_text('syncing 40%\n')
+    write_records(log_dir, start_line('pc01', log=f'/var/log/linuxmuster/linbo/{name}'))
+    assert LinboRunReader().read_run_log('20261001120000-100', 'pc01') == 'syncing 40%\n'
