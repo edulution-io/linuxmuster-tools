@@ -39,7 +39,7 @@ def test_an_account_without_password_is_removed(calls, monkeypatch):
     assert calls[-1] == ['sophomorix-admin', '--kill', 'newadmin']
 
 
-@pytest.mark.parametrize('name', ['global-admin', 'Global-Admin', 'pgmadmin', 'global-binduser', '-x'])
+@pytest.mark.parametrize('name', ['global-admin', 'Global-Admin', 'pgmadmin', 'global-binduser', 'edulutionui-binduser', '-x'])
 def test_protected(calls, name):
     with pytest.raises(ValueError):
         delete_account('globaladministrator', name)
@@ -57,3 +57,19 @@ def test_delete(calls, monkeypatch):
 def test_existing_name():
     with pytest.raises(AccountExistsError):
         accounts._run(['echo', 'ERROR: Object x exists already in AD'])
+
+
+def test_further_protected_names(calls):
+    with pytest.raises(ValueError):
+        delete_account('globalbinduser', 'Keycloak-Bind', protected=['keycloak-bind'])
+    assert calls == []
+
+
+@pytest.mark.parametrize('minimum, expected', [(8, 20), (32, 32)])
+def test_generated_password_has_the_length_of_the_policy(monkeypatch, minimum, expected):
+    from linuxmusterTools.passwords.policy import MinLengthRule, PasswordPolicy
+
+    policy = PasswordPolicy(rules=(MinLengthRule(minimum),))
+    monkeypatch.setattr(accounts.PasswordPolicyProvider, 'get_policy', lambda self, role, school: policy)
+    assert len(accounts._generate_password('globaladministrator', 'global', 'x')) == expected
+

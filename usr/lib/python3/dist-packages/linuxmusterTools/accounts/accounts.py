@@ -15,6 +15,7 @@ from ..ldapconnector.ldap_writer import LdapWriter
 from ..ldapconnector.models import LMNUserModel
 from ..ldapconnector.urls import router as lr
 from ..passwords import PasswordPolicyProvider
+from ..passwords.policy import MinLengthRule
 
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,12 @@ ACCOUNT_TYPES = {
     'schoolbinduser': {'option': 'school-binduser', 'route': 'schoolbindusers', 'school': True},
 }
 
-# Accounts linuxmuster itself needs.
-PROTECTED_ACCOUNTS = ('administrator', 'global-admin', 'global-binduser', 'pgmadmin', 'dns-admin')
+# Accounts linuxmuster itself needs, and the bind user of edulution
+PROTECTED_ACCOUNTS = (
+    'administrator', 'global-admin', 'global-binduser', 'pgmadmin', 'dns-admin', 'edulutionui-binduser',
+)
+
+GENERATED_LENGTH = 20
 
 
 class AccountError(RuntimeError):
@@ -79,9 +84,11 @@ def _set_password(name, data, password):
 
 def _generate_password(role, school, name):
     policy = PasswordPolicyProvider().get_policy(role, school=school)
+    # At least the minimum of the policy, which may be above the default
+    length = max([GENERATED_LENGTH] + [rule.length for rule in policy.rules if isinstance(rule, MinLengthRule)])
     characters = string.ascii_letters + string.digits + '!@#$%&*+-?'
     for _ in range(100):
-        password = ''.join(secrets.choice(characters) for _ in range(20))
+        password = ''.join(secrets.choice(characters) for _ in range(length))
         if policy.validate(password, username=name).ok:
             return password
     raise AccountError('Could not generate a password satisfying the policy')
@@ -109,13 +116,15 @@ def check_new_account(account_type, name, school=None):
         )
 
 
-def check_deletable(account_type, name):
+def check_deletable(account_type, name, protected=()):
     """
+    :param protected: Further names which can not be deleted, e.g. the bind
+        user an installation uses
     :raises ValueError: the account is needed by linuxmuster
     :raises AccountNotFoundError: no such account of this type
     """
 
-    if not NAME_PATTERN.fullmatch(name.lower()) or name.lower() in PROTECTED_ACCOUNTS:
+    if not NAME_PATTERN.fullmatch(name.lower()) or name.lower() in PROTECTED_ACCOUNTS + tuple(p.lower() for p in protected):
         raise ValueError(f'{name} can not be deleted')
     if not get_account(account_type, name):
         raise AccountNotFoundError(f'{name} not found')
@@ -160,12 +169,13 @@ def create_account(account_type, name, school=None, password=None):
     return password
 
 
-def delete_account(account_type, name):
+def delete_account(account_type, name, protected=()):
     """
+    :param protected: See check_deletable()
     :raises ValueError: the account is needed by linuxmuster
     :raises AccountNotFoundError: no such account of this type
     :raises AccountError: refused by sophomorix
     """
 
-    check_deletable(account_type, name)
+    check_deletable(account_type, name, protected)
     _run(['sophomorix-admin', '--kill', name])

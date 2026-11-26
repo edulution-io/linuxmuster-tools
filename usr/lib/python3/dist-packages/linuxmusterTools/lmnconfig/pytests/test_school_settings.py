@@ -10,6 +10,7 @@ MASTER = """# comment
 \tURLMAIL_PRINT=
 [role.student]
 \tQUOTA_DEFAULT_SCHOOL=1500
+\tMAIL_LOCAL_PART_SCHEME=
         CLOUDQUOTA_PERCENTAGE=100
 \tWEBUI_PERMISSIONS=
 [userfile.students.csv]
@@ -34,6 +35,7 @@ def settings(tmp_path, monkeypatch):
         '# keep me\n[school]\n\tSCHOOL_LONGNAME=Test\n[userfile.students.csv]\n\tENCODING_FORCE=no\n\tRANDOM_PWD=yes\n'
     )
     monkeypatch.setattr(module, 'SCHOOL_CONF_DIR', str(tmp_path))
+    monkeypatch.setattr('linuxmusterTools.lmnconfig.locking.LOCK_DIR', str(tmp_path))
     monkeypatch.setattr('linuxmusterTools.lmnfile.lmnfile.ALLOWED_PATHS', [str(tmp_path)])
     return SchoolSettings('default-school', master=str(master))
 
@@ -93,3 +95,40 @@ def test_nothing_is_written_if_one_setting_is_refused(settings):
         settings.update({'school': {'PRINTSERVER': 'ok', 'SCHOOL_LONGNAME': '`'}})
     assert len(error.value.errors) == 1
     assert settings.read()['school']['PRINTSERVER'] == ''
+
+
+@pytest.mark.parametrize('value, ok', [('', True), ('firstname.lastname', True), ('manual', True), ('givenname', False)])
+def test_mail_local_part_scheme(settings, value, ok):
+    changes = {'role.student': {'MAIL_LOCAL_PART_SCHEME': value}}
+    if ok:
+        assert settings.update(changes)['role.student']['MAIL_LOCAL_PART_SCHEME'] == value
+    else:
+        with pytest.raises(SchoolSettingsError):
+            settings.update(changes)
+
+
+def test_a_change_based_on_an_old_version_is_refused(settings):
+    from linuxmusterTools.lmnconfig import ConfigChangedError
+
+    etag = settings.etag()
+    settings.update({'school': {'PRINTSERVER': 'print1'}}, etag=etag)
+    with pytest.raises(ConfigChangedError):
+        settings.update({'school': {'PRINTSERVER': 'print2'}}, etag=etag)
+    assert settings.read()['school']['PRINTSERVER'] == 'print1'
+    settings.update({'school': {'PRINTSERVER': 'print2'}}, etag=settings.etag())
+
+
+def test_parallel_updates_keep_both_changes(settings):
+    import threading
+
+    threads = [
+        threading.Thread(target=settings.update, args=({'school': {key: value}},))
+        for key, value in (('PRINTSERVER', 'print1'), ('SCHOOL_LONGNAME', 'Other'), ('URLMAIL_PRINT', 'mail'))
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    school = settings.read()['school']
+    assert (school['PRINTSERVER'], school['SCHOOL_LONGNAME'], school['URLMAIL_PRINT']) == ('print1', 'Other', 'mail')
+

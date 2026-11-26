@@ -4,6 +4,7 @@ from pathlib import Path
 from linuxmusterTools.lmnfile import LMNFile
 from linuxmusterTools.common import WEBUI_IMPORT
 from linuxmusterTools.common.timestamps import get_utc_mtime
+from .locking import check_unchanged, file_etag, locked
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,15 @@ class CustomFieldsConfig:
         return Path(f'/etc/linuxmuster/sophomorix/{school}/custom_fields.yml')
 
     @classmethod
-    def update(cls, school, changes):
+    def etag(cls, school):
+        """
+        :return: ETag of custom_fields.yml, see update()
+        """
+
+        return file_etag(cls.path(school))
+
+    @classmethod
+    def update(cls, school, changes, etag=None):
         """
         Merge some field settings into custom_fields.yml.
 
@@ -76,9 +85,18 @@ class CustomFieldsConfig:
         :param changes: {'custom': {role: {'1': {'title', 'show', 'editable'}}},
                          'customMulti': same, 'proxyAddresses': {role: {...}}}, partial
         :type changes: dict
+        :param etag: ETag of the file the changes are based on, see etag()
+        :raises ConfigChangedError: the file changed since etag was read
         """
 
         path = cls.path(school)
+        with locked(path):
+            check_unchanged(path, etag)
+            cls._merge(path, changes)
+        _CACHE.pop(school, None)
+
+    @staticmethod
+    def _merge(path, changes):
         data = {}
         if path.is_file():
             with LMNFile(path, 'r') as config:
@@ -99,4 +117,3 @@ class CustomFieldsConfig:
             path.touch(mode=0o600)
         with LMNFile(path, 'w') as config:
             config.write(data)
-        _CACHE.pop(school, None)

@@ -14,6 +14,7 @@ import os
 import re
 
 from linuxmusterTools.lmnfile import LMNFile
+from .locking import check_unchanged, file_etag, locked
 
 
 SCHOOL_CONF_MASTER = '/usr/share/sophomorix/devel/master/school.conf.master'
@@ -27,6 +28,12 @@ FALSE_VALUES = ('false', 'no')
 RESTRICTED_KEYS = ('FILTERSCRIPT', 'WEBUI_PERMISSIONS')
 
 RANDOM_PWD_CHOICES = ('TRUE', 'FALSE', 'birthdate', 'dice')
+
+# Keys sophomorix only accepts with one of these values, see
+# SophomorixSambaAD.pm. An other value stops every sophomorix-check.
+STRING_CHOICES = {
+    'MAIL_LOCAL_PART_SCHEME': ('', 'firstname', 'lastname', 'firstname.lastname', 'lastname.firstname', 'manual'),
+}
 
 # Minimum and maximum of the numeric keys, quotas accept -1 (unlimited).
 INT_RANGES = {
@@ -98,6 +105,8 @@ def _parse_master(path):
                 entry = {'type': 'boolean', 'default': value.split('|', 1)[1].upper() == 'TRUE'}
             elif value.startswith('MULTI|'):
                 entry = {'type': 'choice', 'default': value.split('|', 1)[1], 'choices': list(RANDOM_PWD_CHOICES)}
+            elif key in STRING_CHOICES:
+                entry = {'type': 'choice', 'default': value, 'choices': list(STRING_CHOICES[key])}
             elif key in INT_RANGES:
                 entry = {'type': 'integer', 'default': int(value or 0)}
                 entry['minimum'], entry['maximum'] = INT_RANGES[key]
@@ -227,17 +236,30 @@ class SchoolSettings:
             raise SchoolSettingsError(errors)
         return result
 
-    def update(self, changes, allow_restricted=False):
+    def etag(self):
+        """
+        :return: ETag of school.conf, see update()
+        """
+
+        return file_etag(self.path)
+
+    def update(self, changes, allow_restricted=False, etag=None):
         """
         Write some settings, the others are left untouched.
 
+        :param etag: ETag of the file the changes are based on, see etag()
         :return: All settings, see read()
         :raises SchoolSettingsError: nothing is written if one setting is refused
+        :raises ConfigChangedError: school.conf changed since etag was read
         """
 
-        accepted = self.validate(changes, allow_restricted=allow_restricted)
-        if accepted:
-            with LMNFile(self.path, 'w', convert_values=False) as f:
-                f.backup()
-                f.write(accepted)
-        return self.read()
+        # From reading to writing, the values sent back are compared with the
+        # file they will be written to
+        with locked(self.path):
+            check_unchanged(self.path, etag)
+            accepted = self.validate(changes, allow_restricted=allow_restricted)
+            if accepted:
+                with LMNFile(self.path, 'w', convert_values=False) as f:
+                    f.backup()
+                    f.write(accepted)
+            return self.read()
