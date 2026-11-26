@@ -249,7 +249,11 @@ class LinboConfigManager:
 
         Writes the content verbatim (comments and formatting preserved),
         unlike StartConfLoader.write() which rebuilds the file from parsed
-        sections and drops comments.
+        sections and drops comments. Two lines are kept in step with the id:
+        ``Group`` of a qualified id, and ``School``, which is set to the
+        owner_school() of the id as it was before the write. ``School`` is
+        added only when the owner is not default-school, so a content cannot
+        hand its group to another school.
         TODO: add a method to parse the content.
         """
 
@@ -259,6 +263,10 @@ class LinboConfigManager:
 
         if LINBO_GROUP_SEPARATOR in group_id:
             content = set_group_line(content, group_id)
+
+        owner = self.owner_school(group_id)
+        if owner and (owner != DEFAULT_SCHOOL or get_startconf_option(content, 'School') is not None):
+            content = set_startconf_option(content, 'School', owner)
 
         conf_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}')
         tmp_path = conf_path + '_tmp'
