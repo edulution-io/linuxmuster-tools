@@ -17,7 +17,8 @@ def get_account_state(dn):
 
     :param dn: distinguishedName of the account
     :type dn: basestring
-    :return: {'disabled': bool, 'pwd_last_set': datetime in UTC or None, 'pwd_marker': basestring},
+    :return: {'disabled': bool, 'pwd_last_set': datetime in UTC or None, 'pwd_marker': basestring,
+        'guid': objectGUID as hex},
         None if there is no such account
     :rtype: dict
     """
@@ -34,7 +35,13 @@ def get_account_state(dn):
     if filetime > 0:
         changed = datetime.fromtimestamp(filetime / 10**7 - EPOCH_OFFSET, tz=timezone.utc)
 
-    return {'disabled': bool(control & ACCOUNTDISABLE), 'pwd_last_set': changed, 'pwd_marker': str(filetime)}
+    guid = attributes.get('objectGUID', [b''])[0]
+
+    return {
+        'disabled': bool(control & ACCOUNTDISABLE), 'pwd_last_set': changed, 'pwd_marker': str(filetime),
+        # Never given to another account, unlike the name
+        'guid': guid.hex() or None,
+    }
 
 
 def password_marker(state):
