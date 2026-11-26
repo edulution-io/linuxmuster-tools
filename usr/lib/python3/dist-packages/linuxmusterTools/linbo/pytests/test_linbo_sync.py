@@ -391,3 +391,19 @@ def test_delete_onboot_command_without_pending_command(onboot_dir):
 def test_delete_onboot_command_rejects_an_invalid_hostname(onboot_dir, hostname):
     with pytest.raises(ValueError):
         linbo_sync_module.delete_onboot_command(hostname)
+
+
+@pytest.mark.parametrize('kwargs', [
+    {'room': 'r1 -s other'}, {'group': '-g'}, {'clients': ['pc01', 'pc02 -d']}, {'room': 'r1\n'},
+])
+def test_a_target_can_not_carry_options(kwargs):
+    with pytest.raises(LinboRemoteParameterError):
+        LinboRemote(cmd='reboot', **kwargs)._check_args()
+
+
+def test_a_message_with_spaces_stays_one_argument(monkeypatch):
+    remote = LinboRemote(cmd='create_image:1:my -s other', room='r1')
+    monkeypatch.setattr(remote, '_check_cmd', lambda: None)
+    remote.build()
+    assert remote.built_args[-2:] == ['-c', 'create_image:1:my -s other']
+    assert '-s' not in remote.built_args

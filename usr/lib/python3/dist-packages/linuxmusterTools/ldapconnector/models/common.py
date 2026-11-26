@@ -3,7 +3,9 @@ import json
 from dataclasses import dataclass, asdict
 
 def check_password(dn, password=''):
-    if not dn:
+    # A bind with an empty password is an anonymous one for some servers,
+    # which would succeed without proving anything.
+    if not dn or not password:
         return False
 
     l = ldap.initialize("ldaps://localhost:636/")

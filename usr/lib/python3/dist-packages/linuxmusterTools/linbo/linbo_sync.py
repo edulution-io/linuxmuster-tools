@@ -8,6 +8,7 @@ per run since linuxmuster-linbo7 7.4.18, a single <hostname>.linbo-remote
 overwritten by each run before (see LinboBootLogs.latest_remote_log()).
 """
 
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,8 @@ SESSION_SUFFIX = '_linbo-remote'
 ONBOOT_CMD_PATH = Path(LINBO_PATH) / 'linbocmd'
 
 name_checker = NameChecker()
+
+TARGET_PATTERN = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]*')
 
 
 class LinboRemoteParameterError(ValueError):
@@ -87,6 +90,7 @@ class LinboRemote:
         self.wol = wol
         self.broadcast = broadcast
 
+        self.built_args = []
         self.built_cmd = ''
 
     def _check_args(self):
@@ -119,6 +123,15 @@ class LinboRemote:
 
         if not self.clients and not self.room and not self.group:
             raise LinboRemoteParameterError(f"Specify at least a group, a room or a client.")
+
+        # A value starting with '-' or containing a space is no name of
+        # anything, but could be read as an option by linbo-remote.
+        for kind, value in [('group', self.group), ('room', self.room), *(('client', c) for c in self.clients or [])]:
+            if value and not TARGET_PATTERN.fullmatch(str(value)):
+                raise LinboRemoteParameterError(f'{value!r} is not a valid {kind}.')
+
+        if any(ord(char) < 32 for char in self.cmd or ''):
+            raise LinboRemoteParameterError('cmd must not contain control characters.')
 
     # Commands whose nr is a position in start.conf's [OS] list, not a partition number.
     NR_OS_POSITION_COMMANDS = {
@@ -248,38 +261,38 @@ class LinboRemote:
         self._check_args()
         self._check_cmd()
 
-        self.built_cmd = self.BASE_COMMAND
+        args = [self.BASE_COMMAND]
 
         if self.wait:
-            self.built_cmd += f' -b {self.wait} -w {self.wol}'
+            args += ['-b', str(self.wait), '-w', str(self.wol)]
         elif self.wol:
-            self.built_cmd += f' -w {self.wol}'
+            args += ['-w', str(self.wol)]
 
         if self.broadcast:
-            self.built_cmd += f' -u'
+            args.append('-u')
 
         if self.bypass:
-            self.built_cmd += f' -n'
+            args.append('-n')
 
         if self.room:
-            self.built_cmd += f' -r {self.room}'
+            args += ['-r', self.room]
         elif self.group:
-            self.built_cmd += f' -g {self.group}'
+            args += ['-g', self.group]
         else:
-            self.built_cmd += f' -i {','.join(self.clients)}'
+            args += ['-i', ','.join(self.clients)]
 
         if self.school:
-            self.built_cmd += f' -s {self.school}'
+            args += ['-s', self.school]
 
         if self.disable_gui:
-            self.built_cmd += f' -d'
+            args.append('-d')
 
-        if self.onboot:
-            self.built_cmd += f' -p'
-        else:
-            self.built_cmd += f' -c'
+        args += ['-p' if self.onboot else '-c', self.cmd]
 
-        self.built_cmd += f' {self.cmd}'
+        # One list element per argument: nothing in a value can become an
+        # option of its own. The string is only meant to be displayed.
+        self.built_args = args
+        self.built_cmd = ' '.join(args)
 
     def run(self):
         """
@@ -297,7 +310,7 @@ class LinboRemote:
         self.build()
 
         result = subprocess.run(
-            self.built_cmd.split(),
+            self.built_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
