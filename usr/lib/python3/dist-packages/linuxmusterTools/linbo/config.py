@@ -25,6 +25,33 @@ EXAMPLE_SIDECAR_TYPES = ('reg', 'postsync', 'prestart')
 logger = logging.getLogger(__name__)
 name_checker = NameChecker()
 
+def _option_pattern(key):
+    return rf'(?im)^[ \t]*{re.escape(key)}[ \t]*='
+
+
+def get_startconf_option(content, key):
+    """
+    Value of the first ``key =`` line of a start.conf, without a trailing
+    comment, or None if there is no such line.
+    """
+
+    match = re.search(_option_pattern(key) + r'([^\r\n#]*)', content)
+    return match.group(1).strip() if match else None
+
+
+def set_startconf_option(content, key, value):
+    """
+    Set the first ``key =`` line of a start.conf to ``value``, or add the line
+    to ``[LINBO]`` if there is none. A start.conf without a ``[LINBO]`` section
+    is returned unchanged.
+    """
+
+    line = f'{key} = {value}'
+    if re.search(_option_pattern(key), content):
+        return re.sub(_option_pattern(key) + r'[^\r\n]*', lambda _: line, content, count=1)
+    return re.sub(r'(?im)^([ \t]*\[LINBO\][ \t]*\r?\n)', lambda m: m.group(1) + line + '\n', content, count=1)
+
+
 def set_group_line(content, group_id):
     """
     Set the ``Group =`` line of a start.conf to its group id, so that a client
@@ -33,10 +60,7 @@ def set_group_line(content, group_id):
     A start.conf without a ``[LINBO]`` section is returned unchanged.
     """
 
-    line = f'Group = {group_id}'
-    if re.search(r'(?im)^[ \t]*Group[ \t]*=', content):
-        return re.sub(r'(?im)^[ \t]*Group[ \t]*=[^\r\n]*', lambda _: line, content, count=1)
-    return re.sub(r'(?im)^([ \t]*\[LINBO\][ \t]*\r?\n)', lambda m: m.group(1) + line + '\n', content, count=1)
+    return set_startconf_option(content, 'Group', group_id)
 
 
 class LinboConfigManager:
@@ -53,17 +77,37 @@ class LinboConfigManager:
         self.linbo_configs = {}
         self.group_ids = self._list_group_ids()
 
+    def owner_school(self, group_id):
+        """
+        School that owns a group id. A qualified id ``<school>__<group>``
+        belongs to its school, whatever its start.conf says. A plain id
+        belongs to the school named by ``School =`` in its existing
+        start.conf (start.conf files written before the ids were qualified),
+        else to default-school. ``default-school__<group>`` is never built by
+        get_linbo_group_id() and belongs to no school.
+        """
+
+        if LINBO_GROUP_SEPARATOR in group_id:
+            school = split_linbo_group_id(group_id)[0]
+            return None if school == DEFAULT_SCHOOL else school
+
+        conf_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}')
+        try:
+            with open(conf_path, encoding='utf-8', errors='replace') as f:
+                school = get_startconf_option(f.read(), 'School')
+        except OSError:
+            school = None
+        return school or DEFAULT_SCHOOL
+
     def owns(self, group_id):
         """
-        Whether a group id belongs to the school of this manager. A manager
-        without a school owns every group.
+        Whether a group id belongs to the school of this manager (see
+        owner_school()). A manager without a school owns every group.
         """
 
         if self.school is None:
             return True
-        if self.school == DEFAULT_SCHOOL:
-            return LINBO_GROUP_SEPARATOR not in group_id
-        return split_linbo_group_id(group_id)[0] == self.school
+        return self.owner_school(group_id) == self.school
 
     def _check_owned(self, group_id):
         if not self.owns(group_id):
@@ -205,7 +249,11 @@ class LinboConfigManager:
 
         Writes the content verbatim (comments and formatting preserved),
         unlike StartConfLoader.write() which rebuilds the file from parsed
-        sections and drops comments.
+        sections and drops comments. Two lines are kept in step with the id:
+        ``Group`` of a qualified id, and ``School``, which is set to the
+        owner_school() of the id as it was before the write. ``School`` is
+        added only when the owner is not default-school, so a content cannot
+        hand its group to another school.
         TODO: add a method to parse the content.
         """
 
@@ -215,6 +263,10 @@ class LinboConfigManager:
 
         if LINBO_GROUP_SEPARATOR in group_id:
             content = set_group_line(content, group_id)
+
+        owner = self.owner_school(group_id)
+        if owner and (owner != DEFAULT_SCHOOL or get_startconf_option(content, 'School') is not None):
+            content = set_startconf_option(content, 'School', owner)
 
         conf_path = os.path.join(LINBO_PATH, f'start.conf.{group_id}')
         tmp_path = conf_path + '_tmp'

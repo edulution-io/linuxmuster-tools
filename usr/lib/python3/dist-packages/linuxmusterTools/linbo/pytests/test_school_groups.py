@@ -14,7 +14,13 @@ import pytest
 
 import linuxmusterTools.linbo.changes as changes_module
 import linuxmusterTools.linbo.config as config_module
-from linuxmusterTools.linbo.config import LinboConfigManager, list_workstations, set_group_line
+from linuxmusterTools.linbo.config import (
+    LinboConfigManager,
+    get_startconf_option,
+    list_workstations,
+    set_group_line,
+    set_startconf_option,
+)
 from linuxmusterTools.linbo.group_ids import (
     LINBO_GROUP_SEPARATOR,
     get_linbo_group_id,
@@ -401,3 +407,80 @@ def test_dnsmasq_proxy_skips_a_host_whose_group_has_no_valid_id():
     assert 'aa:bb:cc:00:00:01' in config
     assert 'aa:bb:cc:00:00:02' not in config
     assert 'aa:bb:cc:00:00:03' not in config
+
+
+# ── School option of a plain start.conf ──────────────────────────────────
+
+
+def school_content(school_line):
+    return f"[LINBO]\nServer = 10.0.0.1\n{school_line}\nGroup = raum101\n\n[OS]\nBaseImage=ubuntu.qcow2\n"
+
+
+@pytest.mark.parametrize('school_line, owner', [
+    ('School = abc', 'abc'),
+    ('school=abc   # private', 'abc'),
+    ('School = default-school', 'default-school'),
+    ('School =', 'default-school'),
+    ('', 'default-school'),
+])
+def test_a_plain_group_belongs_to_the_school_of_its_startconf(tmp_path, school_line, owner):
+    write_conf(tmp_path, 'raum101', school_content(school_line))
+    assert LinboConfigManager().owner_school('raum101') == owner
+    assert LinboConfigManager(owner).owns('raum101')
+    other = 'default-school' if owner == 'abc' else 'abc'
+    assert not LinboConfigManager(other).owns('raum101')
+
+
+def test_a_plain_group_of_another_school_is_listed_by_that_school(two_schools, tmp_path):
+    write_conf(tmp_path, 'legacy', school_content('School = abc'))
+    assert LinboConfigManager('abc').group_ids == ['abc__raum101', 'abc__win11_edu', 'legacy']
+    assert LinboConfigManager('default-school').group_ids == ['lab', 'raum101']
+    with pytest.raises(ValueError):
+        LinboConfigManager('default-school').delete_startconf('legacy')
+    LinboConfigManager('abc').delete_startconf('legacy')
+    assert not (tmp_path / 'start.conf.legacy').exists()
+
+
+def test_a_qualified_id_belongs_to_its_school_whatever_its_startconf_says(tmp_path):
+    write_conf(tmp_path, 'abc__raum101', school_content('School = xyz'))
+    assert LinboConfigManager('abc').owns('abc__raum101')
+    assert not LinboConfigManager('xyz').owns('abc__raum101')
+
+
+def test_a_missing_plain_group_belongs_to_default_school():
+    assert LinboConfigManager().owner_school('raum101') == 'default-school'
+    assert not LinboConfigManager('abc').owns('raum101')
+
+
+# ── School line written with the start.conf ──────────────────────────────
+
+
+def test_write_sets_the_school_of_a_qualified_id(tmp_path):
+    LinboConfigManager('abc').write_raw_startconf('abc__raum101', school_content('School = default-school'))
+    written = (tmp_path / 'start.conf.abc__raum101').read_text()
+    assert 'School = abc\n' in written and 'Group = abc__raum101\n' in written
+    assert written.count('School') == 1
+
+
+def test_write_adds_a_missing_school_line_to_a_qualified_id(tmp_path):
+    LinboConfigManager().write_raw_startconf('abc__raum101', CONTENT)
+    assert get_startconf_option((tmp_path / 'start.conf.abc__raum101').read_text(), 'School') == 'abc'
+
+
+def test_write_keeps_the_school_of_a_plain_group_of_another_school(tmp_path):
+    write_conf(tmp_path, 'raum101', school_content('School = abc'))
+    for manager in (LinboConfigManager('abc'), LinboConfigManager()):
+        manager.write_raw_startconf('raum101', school_content('School = default-school'))
+        assert get_startconf_option((tmp_path / 'start.conf.raum101').read_text(), 'School') == 'abc'
+    assert LinboConfigManager('abc').owns('raum101')
+
+
+def test_write_does_not_hand_a_default_school_group_to_another_school(tmp_path):
+    LinboConfigManager('default-school').write_raw_startconf('raum101', school_content('School = abc'))
+    assert get_startconf_option((tmp_path / 'start.conf.raum101').read_text(), 'School') == 'default-school'
+    assert not LinboConfigManager('abc').owns('raum101')
+
+
+def test_set_startconf_option_keeps_crlf_line_endings():
+    content = '[LINBO]\r\nSchool = default-school\r\nGroup = a\r\n'
+    assert set_startconf_option(content, 'School', 'abc') == '[LINBO]\r\nSchool = abc\r\nGroup = a\r\n'
