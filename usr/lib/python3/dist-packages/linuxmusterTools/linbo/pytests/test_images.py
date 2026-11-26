@@ -532,3 +532,62 @@ def test_restart_image_services_raises_on_failure(monkeypatch):
 
     with pytest.raises(subprocess.CalledProcessError):
         images_module.restart_image_services()
+
+
+# ── manifest with broken images ─────────────────────────────────────
+
+
+def test_manifest_leaves_out_a_broken_image_only(environment, monkeypatch):
+    images_root, _ = environment
+    warnings = []
+    monkeypatch.setattr(images_module.logger, "warning", warnings.append)
+    _create_image(images_root, "good")
+    _create_broken_image(images_root, "broken")
+    empty_md5 = _create_image(images_root, "emptymd5")
+    (empty_md5 / "emptymd5.qcow2.md5").write_text("")
+
+    manifest = LinboImageManager(driver_manager=LinboDriverManager(images_root.parent / "drivers")).get_images_infos()
+
+    assert sorted(image["base"] for image in manifest) == ["emptymd5", "good"]
+    assert [image["md5"] for image in manifest if image["base"] == "emptymd5"] == [None]
+    assert any("broken" in warning and "missing" in warning for warning in warnings)
+
+
+def test_manifest_survives_an_image_file_removed_after_loading(environment):
+    images_root, _ = environment
+    _create_image(images_root, "good")
+    gone = _create_image(images_root, "gone")
+    manager = LinboImageManager(driver_manager=LinboDriverManager(images_root.parent / "drivers"))
+    (gone / "gone.qcow2").unlink()
+
+    assert [image["base"] for image in manager.get_images_infos()] == ["good"]
+
+
+def test_an_unreadable_extra_file_breaks_only_its_group(environment, monkeypatch):
+    images_root, _ = environment
+    _create_image(images_root, "good")
+    _create_image(images_root, "unreadable")
+    real_init = images_module.LinboImage.__init__
+
+    def fail_for_one(self, name, *args, **kwargs):
+        if name == "unreadable":
+            raise PermissionError("unreadable.qcow2.desc")
+        real_init(self, name, *args, **kwargs)
+
+    monkeypatch.setattr(images_module.LinboImage, "__init__", fail_for_one)
+    manager = LinboImageManager(driver_manager=LinboDriverManager(images_root.parent / "drivers"))
+
+    assert manager.groups["unreadable"].base is None
+    assert "unreadable.qcow2.desc" in manager.groups["unreadable"].error
+    assert manager.groups["good"].base is not None
+
+
+def test_duplicate_refuses_a_broken_group(environment):
+    images_root, _ = environment
+    _create_broken_image(images_root, "broken")
+    manager = LinboImageManager(driver_manager=LinboDriverManager(images_root.parent / "drivers"))
+
+    with pytest.raises(RuntimeError, match="Cannot duplicate"):
+        manager.duplicate("broken", "copy")
+    assert not (images_root / "copy").exists()
+
