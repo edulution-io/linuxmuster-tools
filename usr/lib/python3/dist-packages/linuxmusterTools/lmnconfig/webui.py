@@ -4,18 +4,23 @@ from pathlib import Path
 from linuxmusterTools.lmnfile import LMNFile
 from linuxmusterTools.common import WEBUI_IMPORT
 from linuxmusterTools.common.timestamps import get_utc_mtime
+from .locking import check_unchanged, file_etag, locked
 
 
 logger = logging.getLogger(__name__)
 
 _CACHE = {}
 
+# Plural of sophomorixRole, the way custom_fields.yml names the roles
+CUSTOM_FIELD_ROLES = ('globaladministrators', 'schooladministrators', 'students', 'teachers', 'parents', 'staffs')
+CUSTOM_FIELD_TYPES = ('custom', 'customMulti', 'proxyAddresses')
+
 class CustomFieldsConfig:
 
     def __init__(self, school='default-school'):
         self.config = {} if WEBUI_IMPORT else self._load(school)
 
-        for role in ['globaladministrators', 'schooladministrators', 'students', 'teachers']:
+        for role in CUSTOM_FIELD_ROLES:
             tmp_role_config = {}
 
             for config_type in ['custom', 'customDisplay', 'customMulti', 'passwordTemplates', 'proxyAddresses']:
@@ -57,3 +62,58 @@ class CustomFieldsConfig:
 
         _CACHE[school] = (mtime, data)
         return data
+
+    @staticmethod
+    def path(school):
+        return Path(f'/etc/linuxmuster/sophomorix/{school}/custom_fields.yml')
+
+    @classmethod
+    def etag(cls, school):
+        """
+        :return: ETag of custom_fields.yml, see update()
+        """
+
+        return file_etag(cls.path(school))
+
+    @classmethod
+    def update(cls, school, changes, etag=None):
+        """
+        Merge some field settings into custom_fields.yml.
+
+        :param school: school name
+        :type school: basestring
+        :param changes: {'custom': {role: {'1': {'title', 'show', 'editable'}}},
+                         'customMulti': same, 'proxyAddresses': {role: {...}}}, partial
+        :type changes: dict
+        :param etag: ETag of the file the changes are based on, see etag()
+        :raises ConfigChangedError: the file changed since etag was read
+        """
+
+        path = cls.path(school)
+        with locked(path):
+            check_unchanged(path, etag)
+            cls._merge(path, changes)
+        _CACHE.pop(school, None)
+
+    @staticmethod
+    def _merge(path, changes):
+        data = {}
+        if path.is_file():
+            with LMNFile(path, 'r') as config:
+                data = config.read() or {}
+
+        for field_type, roles in changes.items():
+            for role, fields in roles.items():
+                target = data.setdefault(field_type, {}).setdefault(role, {})
+                if field_type == 'proxyAddresses':
+                    target.update(fields)
+                else:
+                    for index, values in fields.items():
+                        # YAML written by hand may carry integer keys
+                        known = target.pop(int(index), None) or {}
+                        target[index] = {**known, **target.get(index, {}), **values}
+
+        if not path.is_file():
+            path.touch(mode=0o600)
+        with LMNFile(path, 'w') as config:
+            config.write(data)
