@@ -35,6 +35,35 @@ class LinboRemoteParameterError(ValueError):
     """Raised when LinboRemote is given an invalid or inconsistent parameter."""
 
 
+RUN_USER_PATTERN = re.compile(r'[A-Za-z0-9_.@-]{1,64}')
+RUN_USER_PROBE_TIMEOUT = 5
+
+
+_run_user_support = {}
+
+
+def supports_run_user(base_command='/usr/sbin/linbo-remote'):
+    """
+    Whether the installed linbo-remote knows ``--run-user`` (linuxmuster-linbo7
+    with the run record fields). Older ones reject the unknown option, so it is
+    only passed when the help lists it. Only a positive answer is remembered:
+    a failed probe, or a linbo-remote upgraded while the process runs, is
+    asked again.
+    """
+
+    if _run_user_support.get(base_command):
+        return True
+    try:
+        result = subprocess.run([base_command, '-h'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, timeout=RUN_USER_PROBE_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    supported = '--run-user' in result.stdout
+    if supported:
+        _run_user_support[base_command] = True
+    return supported
+
+
 # TODO:
 #  - add support for remote linbo server (per ssh)
 
@@ -78,6 +107,7 @@ class LinboRemote:
             onboot=False,               # -p
             wol=0,                      # -w
             broadcast=None,             # -u
+            run_user=None,              # --run-user, who started the run
     ):
         self.wait = wait
         self.cmd = cmd
@@ -90,6 +120,7 @@ class LinboRemote:
         self.onboot = onboot
         self.wol = wol
         self.broadcast = broadcast
+        self.run_user = run_user
 
         self.built_args = []
         self.built_cmd = ''
@@ -100,6 +131,9 @@ class LinboRemote:
 
         if self.wait < 0 or self.wol < 0:
             raise LinboRemoteParameterError(f'If given, wait and wol must be positive integer.')
+
+        if self.run_user is not None and not RUN_USER_PATTERN.fullmatch(self.run_user):
+            raise LinboRemoteParameterError(f'{self.run_user} is not a valid user name for the run record.')
 
         if self.wait and not self.wol:
             raise LinboRemoteParameterError(f'If parameter wait is given, wol must be given too.')
@@ -291,6 +325,9 @@ class LinboRemote:
 
         if self.disable_gui:
             args.append('-d')
+
+        if self.run_user and not self.onboot and supports_run_user(self.BASE_COMMAND):
+            args += ['--run-user', self.run_user]
 
         args += ['-p' if self.onboot else '-c', self.cmd]
 
