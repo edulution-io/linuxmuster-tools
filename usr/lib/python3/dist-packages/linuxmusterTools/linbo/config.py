@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import filecmp
 from pathlib import Path
 import hashlib
 from glob import glob
@@ -13,6 +12,7 @@ from .grub import GRUB_DIR_DEFAULT
 from .group_ids import DEFAULT_SCHOOL, LINBO_GROUP_SEPARATOR, get_linbo_group_id, split_linbo_group_id, try_get_linbo_group_id
 from ..devices import Devices
 from ..lmnfile import LMNFile
+from ..lmnfile.lmnfile import same_content
 from ..common.checks import NameChecker
 from ..common.sorting import natural_key
 from ..common.timestamps import get_utc_mtime, linbo_timestamp_to_epoch
@@ -276,7 +276,7 @@ class LinboConfigManager:
                 with open(tmp_path, 'w', encoding=lmn_file.encoding) as f:
                     f.write(content)
 
-                if not filecmp.cmp(tmp_path, conf_path):
+                if not same_content(tmp_path, conf_path):
                     lmn_file.backup()
                     os.rename(tmp_path, conf_path)
                 else:
