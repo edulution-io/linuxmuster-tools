@@ -88,6 +88,18 @@ config - a group without one simply has VDI disabled.
 
 ---
 
+## Group ids and dnsmasq
+
+A LINBO group id names `start.conf.<id>` and `<id>.cfg`. `get_linbo_group_id(school, group)` (`linbo.group_ids`) builds it: the plain group in `default-school`, `<school>__<group>` in every other school (`abc__raum101`), so two schools can use the same group name. A group that is empty or contains `__` raises `ValueError`; `try_get_linbo_group_id()` logs it and returns `None` instead.
+
+`LinboConfigManager(school)` only lists and changes the groups that `owner_school()` gives to its school. A qualified id belongs to the school in its name. A plain id belongs to the school named by `School =` in the `[LINBO]` section of its start.conf (a start.conf written before the ids were qualified, e.g. `School = abc` in `start.conf.raum101`), and to `default-school` when that is missing or empty.
+
+`write_raw_startconf(group_id, content)` keeps two lines of the content in step with the id: `Group` is set to a qualified id, and `School` to the owner the id had before the write (`School = abc` in `start.conf.abc__raum101`). For a `default-school` group a `School` line is only corrected, not added. A content cannot change the owner of its group this way.
+
+`LinboDhcpExporter.generate_dnsmasq_proxy(hosts, server_ip=None, school='default-school')` hands each host the group id of `school` as NIS domain (option 40). Hosts without PXE, with an empty group or with a group containing `__` are left out of the config.
+
+---
+
 ## Image manager
 
 `LinboImageManager` provides an object to manage all linbo images, backups and extra files (rename, delete, ... ).

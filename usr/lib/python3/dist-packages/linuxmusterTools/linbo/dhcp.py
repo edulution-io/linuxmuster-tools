@@ -13,6 +13,7 @@ from pathlib import Path
 
 from linuxmusterTools.lmnfile import LMNFile
 from ..common.timestamps import get_utc_mtime
+from .group_ids import DEFAULT_SCHOOL, try_get_linbo_group_id
 
 
 logger = logging.getLogger(__name__)
@@ -50,12 +51,16 @@ class LinboDhcpExporter:
         self,
         hosts: list[dict],
         server_ip: str | None = None,
+        school: str = DEFAULT_SCHOOL,
     ) -> str:
         """Generate dnsmasq proxy-DHCP config from host list.
 
         Args:
             hosts: List of host dicts with 'pxeEnabled', 'mac', 'group'
             server_ip: TFTP/boot server IP (auto-detected from setup.ini if None)
+            school: School of the hosts. The group handed to the client is its
+                LINBO group id (<school>__<group> outside default-school), so
+                the client boots the start.conf of that school.
 
         Returns:
             The complete dnsmasq configuration as a string.
@@ -102,21 +107,21 @@ class LinboDhcpExporter:
         ]
 
         if pxe_hosts:
-            config_groups: dict[str, list[dict]] = {}
-            for h in pxe_hosts:
-                config_groups.setdefault(h["group"], []).append(h)
+            # A host whose group cannot get an id is left out, like a host without group
+            host_groups = [(h, try_get_linbo_group_id(school, h["group"]) if h["group"] else None) for h in pxe_hosts]
+            host_groups = [(h, group_id) for h, group_id in host_groups if group_id]
+            config_groups = dict.fromkeys(group_id for _, group_id in host_groups)
 
             lines.append("# Host config assignments")
-            for h in pxe_hosts:
-                tag = _TAG_RE.sub("_", h["group"])
+            for h, group_id in host_groups:
+                tag = _TAG_RE.sub("_", group_id)
                 lines.append(f"dhcp-host={h['mac']},set:{tag}")
             lines.append("")
 
             lines.append("# Config name via NIS-Domain (Option 40)")
             for config_name in config_groups:
-                if config_name:
-                    tag = _TAG_RE.sub("_", config_name)
-                    lines.append(f"dhcp-option=tag:{tag},40,{config_name}")
+                tag = _TAG_RE.sub("_", config_name)
+                lines.append(f"dhcp-option=tag:{tag},40,{config_name}")
             lines.append("")
 
         return "\n".join(lines)
